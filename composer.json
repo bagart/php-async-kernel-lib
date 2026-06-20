@@ -1,0 +1,42 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "bagart/async-kernel",
+    "description": "Async kernel for PHP — Fibers, Promises, cooperative scheduling",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "ASK",
+        "async",
+        "pipeline",
+        "execution-engine",
+        "fiber"
+    ],
+    "authors": [
+        {
+            "name": "BAGArt (Artur Baltaev)",
+            "email": "baltaev.artur+ask@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.5",
+        "monolog/monolog": "^3.0",
+        "psr/log": "^3.0",
+        "psr/simple-cache": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "BAGArt\\AsyncKernel\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "BAGArt\\AsyncKernel\\Tests\\": "tests/"
+        },
+        "files": [
+            "tests/helpers.php"
+        ]
+    },
+    "scripts": {
+        "test": "composer exec pest tests --colors=always"
+    }
+}
