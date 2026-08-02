@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use BAGArt\AsyncKernel\ASK;
 use BAGArt\AsyncKernel\AsyncKernel;
 use BAGArt\AsyncKernel\CliActions;
 use BAGArt\AsyncKernel\Daemons\ASKFnDaemon;
@@ -42,13 +41,13 @@ function big_add(string $a, string $b): string
             $carry = intdiv($s, 10);
             $r .= $s % 10;
         }
-        return ($negA ? '-' : '') . strrev($r);
+        return ($negA ? '-' : '').strrev($r);
     }
 
     if (abs_cmp($absA, $absB) >= 0) {
-        return ($negA ? '-' : '') . raw_sub($absA, $absB);
+        return ($negA ? '-' : '').raw_sub($absA, $absB);
     }
-    return ($negB ? '-' : '') . raw_sub($absB, $absA);
+    return ($negB ? '-' : '').raw_sub($absB, $absA);
 }
 
 function big_sub(string $a, string $b): string
@@ -56,7 +55,7 @@ function big_sub(string $a, string $b): string
     if ($b[0] === '-') {
         return big_add($a, substr($b, 1));
     }
-    return big_add($a, '-' . $b);
+    return big_add($a, '-'.$b);
 }
 
 function big_mul(string $a, string $b): string
@@ -81,7 +80,7 @@ function big_mul(string $a, string $b): string
         }
     }
     $absResult = ltrim(implode('', $r), '0') ?: '0';
-    return ($negA xor $negB) ? '-' . $absResult : $absResult;
+    return ($negA xor $negB) ? '-'.$absResult : $absResult;
 }
 
 function big_mul_int(string $a, int $b): string
@@ -93,7 +92,7 @@ function big_mul_int(string $a, int $b): string
         return $a;
     }
     if ($b === -1) {
-        return $a[0] === '-' ? substr($a, 1) : '-' . $a;
+        return $a[0] === '-' ? substr($a, 1) : '-'.$a;
     }
 
     $negA = $a[0] === '-';
@@ -108,7 +107,7 @@ function big_mul_int(string $a, int $b): string
         $r .= $p % 10;
         $carry = intdiv($p, 10);
     }
-    return ($negA xor ($b < 0)) ? '-' . strrev($r) : strrev($r);
+    return ($negA xor ($b < 0)) ? '-'.strrev($r) : strrev($r);
 }
 
 function big_lt(string $a, string $b): bool
@@ -173,7 +172,7 @@ function big_div(string $a, string $b): string
     }
 
     $result = ltrim($result, '0') ?: '0';
-    return ($negA xor $negB) ? '-' . $result : $result;
+    return ($negA xor $negB) ? '-'.$result : $result;
 }
 
 $definedOptions = [

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace BAGArt\AsyncKernel\Wrappers;
 
-use BAGArt\AsyncKernel\Contracts\Queue\ASKQueueAdapterContract;
+use BAGArt\ASKClient\Contracts\Queue\ASKQueueAdapterContract;
 
 final class ASKQueueWrapper
 {

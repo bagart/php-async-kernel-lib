@@ -9,8 +9,8 @@ use DateInterval;
 interface ASKClockContract
 {
     public const int NS_PER_SEC = 1_000_000_000;
-    public const int NS_PER_US  = 1_000;
-    public const int NS_PER_MS  = 1_000_000;
+    public const int NS_PER_US = 1_000;
+    public const int NS_PER_MS = 1_000_000;
 
     public function microtime(): float;
 

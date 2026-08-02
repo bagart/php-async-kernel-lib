@@ -11,6 +11,7 @@ use DateInterval;
 final class InMemoryCache implements ASKCacheContract
 {
     use ASKCacheSimpleReuseMethodsTrait;
+
     public const string TYPE = 'in_memory';
 
     /** @var array<string, array{value: mixed, expires_at: ?float}> */
