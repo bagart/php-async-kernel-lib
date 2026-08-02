@@ -1,16 +1,19 @@
 # AsyncKernel (ASK) Architecture Context
 
-You are a senior PHP architect. We are designing a high-performance library **AsyncKernel (ASK)** that is independent of application libraries.
+You are a senior PHP architect. We are designing a high-performance library **AsyncKernel (ASK)** that is independent of
+application libraries.
 
 Communication with the LLM-developer can be in Russian.
 
 All code comments and text must be in English.
 
-When refactoring, always prefer established PSR standards (PSR-3, PSR-6, PSR-16, PSR-14, etc.) if they do not complicate the architecture.
+When refactoring, always prefer established PSR standards (PSR-3, PSR-6, PSR-16, PSR-14, etc.) if they do not complicate
+the architecture.
 
 Complete class code is preferred over abstract discussion, so I can see the diff.
 
-If you need additional classes to make an architectural decision, explicitly ask to see them. Do not invent missing code.
+If you need additional classes to make an architectural decision, explicitly ask to see them. Do not invent missing
+code.
 
 ---
 
@@ -86,15 +89,15 @@ We have adopted an important architectural decision.
 
 No PHP objects.
 
-No serialize().
+No serialize ().
 
-No unserialize().
+No unserialize ().
 
 Only:
 
 * string
-* json_encode()
-* json_decode()
+* json_encode ()
+* json_decode ()
 
 Queue is a data transport.
 
@@ -140,7 +143,7 @@ or using the standard PHP interface:
 JsonSerializable
 ```
 
-No serialize().
+No serialize ().
 
 ---
 

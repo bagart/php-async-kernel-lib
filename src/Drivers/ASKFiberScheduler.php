@@ -86,7 +86,7 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
             return 0;
         }
 
-        return (int) min(100, ($socketCount / 50) * 100);
+        return (int)min(100, ($socketCount / 50) * 100);
     }
 
     public function forceStop(?Closure $onFiberForceStopped = null): void
@@ -105,7 +105,7 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
             throw new \RuntimeException('watchRead requires a running Fiber');
         }
 
-        $id = (int) $socket;
+        $id = (int)$socket;
         $this->readSockets[$id] = $socket;
         $this->waitingReadFibers[$id] = $fiber;
 
@@ -121,7 +121,7 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
 
     public function unwatchRead(mixed $socket): void
     {
-        $id = (int) $socket;
+        $id = (int)$socket;
         unset($this->readSockets[$id], $this->waitingReadFibers[$id], $this->leases[$id]);
     }
 
@@ -138,7 +138,7 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
             throw new \RuntimeException('watchWrite requires a running Fiber');
         }
 
-        $id = (int) $socket;
+        $id = (int)$socket;
         $this->writeSockets[$id] = $socket;
         $this->waitingWriteFibers[$id] = $fiber;
 
@@ -154,7 +154,7 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
 
     public function unwatchWrite(mixed $socket): void
     {
-        $id = (int) $socket;
+        $id = (int)$socket;
         unset($this->writeSockets[$id], $this->waitingWriteFibers[$id], $this->leases[$id]);
     }
 
@@ -216,7 +216,7 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
         }
 
         foreach ($read as $readySocket) {
-            $id = (int) $readySocket;
+            $id = (int)$readySocket;
 
             if (isset($this->waitingReadFibers[$id])) {
                 $this->queue->enqueue($this->waitingReadFibers[$id]);
@@ -224,7 +224,7 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
         }
 
         foreach ($write as $readySocket) {
-            $id = (int) $readySocket;
+            $id = (int)$readySocket;
 
             if (isset($this->waitingWriteFibers[$id])) {
                 $this->queue->enqueue($this->waitingWriteFibers[$id]);
@@ -245,9 +245,9 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
             $elapsedMs = (microtime(true) - $this->pollingSocketsSince) * 1000;
 
             $timeoutUs = match (true) {
-                $elapsedMs < 2_000   => self::FAST_POLL_US,
-                $elapsedMs < 10_000  => self::NORMAL_POLL_US,
-                default              => self::SLOW_POLL_US,
+                $elapsedMs < 2_000 => self::FAST_POLL_US,
+                $elapsedMs < 10_000 => self::NORMAL_POLL_US,
+                default => self::SLOW_POLL_US,
             };
 
             $this->pollSockets(0, $timeoutUs);
@@ -265,8 +265,8 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
             $diff = $nearestWakeup - microtime(true);
 
             if ($diff > 0) {
-                $sec = (int) $diff;
-                $usec = (int) (($diff - $sec) * 1_000_000);
+                $sec = (int)$diff;
+                $usec = (int)(($diff - $sec) * 1_000_000);
             } else {
                 $sec = 0;
             }

@@ -19,7 +19,7 @@ interface ASKLockerContract
     /**
      * Acquire lock (without explicit TTL — implementation uses its own default).
      *
-     * @param string $key Lock key.
+     * @param  string  $key  Lock key.
      *
      * @return bool true — acquired; false — already held.
      */
@@ -28,7 +28,7 @@ interface ASKLockerContract
     /**
      * Release lock (without owner check — unconditional release).
      *
-     * @param string $key Lock key.
+     * @param  string  $key  Lock key.
      */
     public function release(string $key): void;
 
@@ -39,9 +39,9 @@ interface ASKLockerContract
      * seconds, not remaining held forever. Owner enables safe release —
      * only the owner (or anyone when owner=null) can release the lock.
      *
-     * @param string      $key   Lock key.
-     * @param int         $ttl   TTL in seconds (after which the lock automatically releases).
-     * @param string|null $owner Owner identifier; null — generates a random token
+     * @param  string  $key  Lock key.
+     * @param  int  $ttl  TTL in seconds (after which the lock automatically releases).
+     * @param  string|null  $owner  Owner identifier; null — generates a random token
      *                           (like in acquire()), but then releaseWithOwner without an owner
      *                           won't work correctly for this call. Pass an explicit owner
      *                           for lifetime management.
@@ -57,8 +57,8 @@ interface ASKLockerContract
      * a different worker cannot release another's lock). If $owner = null — unconditional
      * release (like release(), for back-compat and cases where owner is not important).
      *
-     * @param string      $key   Lock key.
-     * @param string|null $owner Owner identifier; null — unconditional release.
+     * @param  string  $key  Lock key.
+     * @param  string|null  $owner  Owner identifier; null — unconditional release.
      */
     public function releaseWithOwner(string $key, ?string $owner = null): void;
 }

@@ -43,7 +43,7 @@ function makeArrayCache(): CacheInterface
         }
 
         /**
-         * @param list<string> $keys
+         * @param  list<string>  $keys
          */
         public function getMultiple(iterable $keys, mixed $default = null): iterable
         {

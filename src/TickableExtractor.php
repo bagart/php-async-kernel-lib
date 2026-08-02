@@ -12,7 +12,7 @@ final class TickableExtractor
     /**
      * @template T of object
      *
-     * @param list<T|null> $objects
+     * @param  list<T|null>  $objects
      *
      * @return list<ASKTickableContract>
      */

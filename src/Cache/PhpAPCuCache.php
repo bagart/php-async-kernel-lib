@@ -11,6 +11,7 @@ use DateInterval;
 final class PhpAPCuCache implements ASKCacheContract
 {
     use ASKCacheSimpleReuseMethodsTrait;
+
     public const string TYPE = 'APCu';
 
     public function __construct(

@@ -23,7 +23,7 @@ final class FileCache implements ASKCacheContract
         private readonly ASKClockContract $clock,
         string $cacheDir = 'storage/lib/cache'
     ) {
-        $this->path = rtrim($cacheDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $this->path = rtrim($cacheDir, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
 
         if (!is_dir($this->path) && !mkdir($this->path, 0755, true) && !is_dir($this->path)) {
             throw new RuntimeException("Directory '{$this->path}' was not created");
@@ -133,13 +133,13 @@ final class FileCache implements ASKCacheContract
     private function getFilePath(string $key): string
     {
         $hash = md5($key);
-        $dir = $this->path . substr($hash, 0, 2) . DIRECTORY_SEPARATOR . substr($hash, 2, 2);
+        $dir = $this->path.substr($hash, 0, 2).DIRECTORY_SEPARATOR.substr($hash, 2, 2);
 
         if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
             throw new RuntimeException("Directory '$dir' was not created");
         }
 
-        return $dir . DIRECTORY_SEPARATOR . $hash;
+        return $dir.DIRECTORY_SEPARATOR.$hash;
     }
 
     private function resolveExpiry(DateInterval|int|null $ttl): ?float

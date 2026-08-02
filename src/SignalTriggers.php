@@ -28,21 +28,24 @@ final class SignalTriggers
         pcntl_async_signals(true);
 
         foreach ($signals as $signal) {
-            pcntl_signal($signal, static function () use ($signal, $onGraceful, $onForce, $immediateForceSignals): void {
-                if (self::$shutdownRequested || in_array($signal, $immediateForceSignals, true)) {
-                    self::$forceRequested = true;
-                    if ($onForce !== null) {
-                        ($onForce)($signal);
+            pcntl_signal(
+                $signal,
+                static function () use ($signal, $onGraceful, $onForce, $immediateForceSignals): void {
+                    if (self::$shutdownRequested || in_array($signal, $immediateForceSignals, true)) {
+                        self::$forceRequested = true;
+                        if ($onForce !== null) {
+                            ($onForce)($signal);
+                        }
+
+                        return;
                     }
 
-                    return;
+                    self::$shutdownRequested = true;
+                    if ($onGraceful !== null) {
+                        ($onGraceful)($signal);
+                    }
                 }
-
-                self::$shutdownRequested = true;
-                if ($onGraceful !== null) {
-                    ($onGraceful)($signal);
-                }
-            });
+            );
         }
     }
 

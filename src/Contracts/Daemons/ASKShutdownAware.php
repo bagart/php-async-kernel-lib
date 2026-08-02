@@ -23,7 +23,7 @@ interface ASKShutdownAware
 
     /**
      * Called in STOPPING phase.
-     * Daemon must stop accepting new tasks (consumer, poller).
+     * Daemon must stop accepting new tasks (consumer, tg_daemons).
      */
     public function prepareShutdown(): void;
 }

@@ -45,6 +45,9 @@ final class AsyncKernel implements AsyncKernelContract
     /** @var array<int, Fiber> */
     private array $producerFibers = [];
 
+    /** @var array<int, Throwable> */
+    private array $producerFiberErrors = [];
+
     private bool $isRunning = false;
 
     private float $lastBackpressureLogAt = 0;
@@ -253,16 +256,26 @@ final class AsyncKernel implements AsyncKernelContract
                 continue;
             }
 
-            try {
-                $fiber->getReturn();
-            } catch (ASKInterruptException $e) {
-                throw $e;
-            } catch (Throwable $e) {
+            $capturedError = $this->producerFiberErrors[$id] ?? null;
+
+            unset($this->producerFibers[$id], $this->producerFiberErrors[$id]);
+
+            if ($capturedError instanceof ASKInterruptException) {
+                throw $capturedError;
+            }
+
+            if ($capturedError !== null) {
                 if (isset($this->producers[$id])) {
-                    $this->producers[$id]->onError($e);
+                    $this->producers[$id]->onError($capturedError);
                 }
-            } finally {
-                unset($this->producerFibers[$id]);
+            } else {
+                try {
+                    $fiber->getReturn();
+                } catch (Throwable $e) {
+                    if (isset($this->producers[$id])) {
+                        $this->producers[$id]->onError($e);
+                    }
+                }
             }
 
             $this->lastProduceAt[$id] = $this->clock->time();
@@ -284,8 +297,16 @@ final class AsyncKernel implements AsyncKernelContract
                     && $this->canRun($id)
                     && $this->isRunning
                 ) {
-                    $fiber = new Fiber(function () use ($producer, $systemPressure): void {
-                        $producer->produce($systemPressure);
+                    unset($this->producerFiberErrors[$id]);
+
+                    $fiber = new Fiber(function () use ($producer, $systemPressure, $id): void {
+                        try {
+                            $producer->produce($systemPressure);
+                        } catch (Throwable $e) {
+                            $this->producerFiberErrors[$id] = $e;
+
+                            throw $e;
+                        }
                     });
 
                     $fiber->start();

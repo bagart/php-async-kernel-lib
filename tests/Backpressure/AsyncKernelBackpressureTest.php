@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 use BAGArt\AsyncKernel\AsyncKernel;
-use BAGArt\AsyncKernel\Contracts\Daemons\ASKTickableContract;
 use BAGArt\AsyncKernel\Contracts\ASKProducerContract;
+use BAGArt\AsyncKernel\Contracts\Daemons\ASKTickableContract;
 use BAGArt\AsyncKernel\Enum\ExceptionPolicy;
 use BAGArt\AsyncKernel\Wrappers\ASKLogWrapper;
 use Psr\Log\NullLogger;

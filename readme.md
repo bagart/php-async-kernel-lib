@@ -20,15 +20,15 @@ AsyncKernel
 
 ### Core Components
 
-| Class                     | Purpose                                                                |
-|---------------------------|------------------------------------------------------------------------|
-| `AsyncKernel`             | Main event loop — ticks drivers then daemons, manages idle/busy sleep  |
+| Class                        | Purpose                                                                |
+|------------------------------|------------------------------------------------------------------------|
+| `AsyncKernel`                | Main event loop — ticks drivers then daemons, manages idle/busy sleep  |
 | `ASKPromise` / `ASKDeferred` | Promise/A+ style primitives with `then`, `otherwise`, `wait`, `cancel` |
 | `ASKPromiseResolver`         | Awaits a promise from within a Fiber or blocking context               |
-| `ASKFiberScheduler` | Enqueues and schedules Fibers with `sleep(delay)` support              |
-| `GuzzlePromiseAdapter`    | Wraps `GuzzleHttp\Promise\PromiseInterface` into `ASKPromiseContract`     |
-| `GuzzleTickableDriver`    | Ticks `GuzzleHttp\Promise\Utils::queue()` each cycle                   |
-| `AskCurlMultiClientAdapter`         | Ticks a `CurlMultiHandler` each cycle                                  |
+| `ASKFiberScheduler`          | Enqueues and schedules Fibers with `sleep(delay)` support              |
+| `GuzzlePromiseAdapter`       | Wraps `GuzzleHttp\Promise\PromiseInterface` into `ASKPromiseContract`  |
+| `GuzzleTickableDriver`       | Ticks `GuzzleHttp\Promise\Utils::queue()` each cycle                   |
+| `AskCurlMultiClientAdapter`  | Ticks a `CurlMultiHandler` each cycle                                  |
 
 ## Requirements
 
@@ -197,7 +197,7 @@ $kernel = new AsyncKernel(
 
 | Strategy                          | Description                                                                  |
 |-----------------------------------|------------------------------------------------------------------------------|
-| `AdaptiveKernelSleepStrategy`           | Linearly increases idle sleep up to 1ms; configurable idle/busy microseconds |
+| `AdaptiveKernelSleepStrategy`     | Linearly increases idle sleep up to 1ms; configurable idle/busy microseconds |
 | `ExponentialBackoffSleepStrategy` | Doubles idle sleep each tick (capped)                                        |
 | `NoSleepStrategy`                 | No sleep between ticks (busy-wait)                                           |
 

@@ -24,18 +24,18 @@ trait ASKCacheSimpleReuseMethodsTrait
 
     public function put($key, $value, $seconds): bool
     {
-        return $this->set($key, $value, (int) $seconds);
+        return $this->set($key, $value, (int)$seconds);
     }
 
     public function putMany(array $values, $seconds): bool
     {
-        return $this->setMultiple($values, (int) $seconds);
+        return $this->setMultiple($values, (int)$seconds);
     }
 
     public function increment($key, $value = 1): int|bool
     {
         $current = $this->get($key, 0);
-        $new = (int) $current + (int) $value;
+        $new = (int)$current + (int)$value;
         $this->set($key, $new);
 
         return $new;
@@ -44,7 +44,7 @@ trait ASKCacheSimpleReuseMethodsTrait
     public function decrement($key, $value = 1): int|bool
     {
         $current = $this->get($key, 0);
-        $new = (int) $current - (int) $value;
+        $new = (int)$current - (int)$value;
         $this->set($key, $new);
 
         return $new;
@@ -57,7 +57,7 @@ trait ASKCacheSimpleReuseMethodsTrait
 
     public function touch($key, $seconds): bool
     {
-        return $this->set($key, $this->get($key), (int) $seconds);
+        return $this->set($key, $this->get($key), (int)$seconds);
     }
 
     public function forget($key): bool
