@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace BAGArt\AsyncKernel;
 
-use Closure;
+use BAGArt\AsyncKernel\Contracts\ASKSignalHandlerContract;
 
 final class SignalTriggers
 {
@@ -17,33 +17,32 @@ final class SignalTriggers
      */
     public static function register(
         array $signals = [SIGINT, SIGTERM],
-        ?Closure $onGraceful = null,
-        ?Closure $onForce = null,
+        ?ASKSignalHandlerContract $handler = null,
         array $immediateForceSignals = [SIGUSR1, SIGQUIT],
     ): void {
         if (!function_exists('pcntl_signal')) {
             return;
         }
 
+        $handler ??= new ASKNullSignalHandler();
+
         pcntl_async_signals(true);
 
-        foreach ($signals as $signal) {
+        // Immediate-force signals must be handled too, otherwise they keep
+        // their default disposition (usually process termination).
+        foreach (array_values(array_unique([...$signals, ...$immediateForceSignals])) as $signal) {
             pcntl_signal(
                 $signal,
-                static function () use ($signal, $onGraceful, $onForce, $immediateForceSignals): void {
+                static function () use ($signal, $handler, $immediateForceSignals): void {
                     if (self::$shutdownRequested || in_array($signal, $immediateForceSignals, true)) {
                         self::$forceRequested = true;
-                        if ($onForce !== null) {
-                            ($onForce)($signal);
-                        }
+                        $handler->force($signal);
 
                         return;
                     }
 
                     self::$shutdownRequested = true;
-                    if ($onGraceful !== null) {
-                        ($onGraceful)($signal);
-                    }
+                    $handler->graceful($signal);
                 }
             );
         }

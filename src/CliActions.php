@@ -59,13 +59,7 @@ final class CliActions
             }
         }
         if ($signals !== []) {
-            SignalTriggers::register(
-                signals: $signals,
-                onGraceful: static function (): void {
-                },
-                onForce: static function (): void {
-                },
-            );
+            SignalTriggers::register(signals: $signals);
         }
     }
 }
