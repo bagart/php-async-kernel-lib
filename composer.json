@@ -37,12 +37,19 @@
         "test": "composer exec pest tests --colors=always"
     },
     "require-dev": {
-        "pestphp/pest": "^4.7"
+        "pestphp/pest": "^4.7",
+        "bagart/devops-baseline": "@dev"
     },
     "config": {
         "allow-plugins": {
             "infection/extension-installer": true,
             "pestphp/pest-plugin": true
         }
-    }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../devops-baseline"
+        }
+    ]
 }

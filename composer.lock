@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ab766c20407c0edbe66584739ef3af60",
+    "content-hash": "5c2db87d8495dd9377cbc3b77f18a0fc",
     "packages": [
         {
             "name": "monolog/monolog",
@@ -212,6 +212,43 @@
         }
     ],
     "packages-dev": [
+        {
+            "name": "bagart/devops-baseline",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../devops-baseline",
+                "reference": "8a19f024b8a92e4a422020bd7fc758fcec446ec3"
+            },
+            "require": {
+                "php": "^8.4"
+            },
+            "bin": [
+                "bin/baseline-check",
+                "bin/baseline-fix",
+                "bin/baseline-security",
+                "bin/baseline-drift",
+                "bin/baseline-setup",
+                "bin/baseline-selftest"
+            ],
+            "type": "library",
+            "scripts": {
+                "test": [
+                    "bash selftest/selfcheck-engine.sh"
+                ],
+                "lint": [
+                    "bash controls/shell-lint.sh lib bin hooks selftest",
+                    "php controls/lf-check.php --all"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Reusable DevOps/security baseline engine: controls, hooks and CLI for BAGArt repositories. Ships executors and defaults; every consumer keeps its own policy JSONs.",
+            "transport-options": {
+                "relative": true
+            }
+        },
         {
             "name": "brianium/paratest",
             "version": "v7.20.0",
@@ -4241,7 +4278,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": [],
+    "stability-flags": {
+        "bagart/devops-baseline": 20
+    },
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {

@@ -158,7 +158,7 @@ describe('AsyncKernel producer error handling', function () {
 
     it('lets ASKInterruptException thrown from produce() bubble (not routed to onError)', function () {
         $records = [];
-        $spyLogger = new class($records) implements \Psr\Log\LoggerInterface {
+        $spyLogger = new class ($records) implements \Psr\Log\LoggerInterface {
             /** @param list<array{level: string, message: string}> $records */
             public function __construct(private array &$records)
             {
