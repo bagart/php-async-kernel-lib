@@ -38,7 +38,7 @@
     },
     "require-dev": {
         "pestphp/pest": "^4.7",
-        "bagart/devops-baseline": "@dev"
+        "bagart/telegram-platform-devops-baseline": "@dev"
     },
     "config": {
         "allow-plugins": {
@@ -49,7 +49,7 @@
     "repositories": [
         {
             "type": "path",
-            "url": "../devops-baseline"
+            "url": "../telegram-platform-devops-baseline"
         }
     ]
 }

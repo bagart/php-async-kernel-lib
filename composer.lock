@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5c2db87d8495dd9377cbc3b77f18a0fc",
+    "content-hash": "9b35129d93a5ae79b2446f39ff9dee23",
     "packages": [
         {
             "name": "monolog/monolog",
@@ -213,12 +213,12 @@
     ],
     "packages-dev": [
         {
-            "name": "bagart/devops-baseline",
+            "name": "bagart/telegram-devops-baseline",
             "version": "dev-main",
             "dist": {
                 "type": "path",
-                "url": "../devops-baseline",
-                "reference": "8a19f024b8a92e4a422020bd7fc758fcec446ec3"
+                "url": "../telegram-devops-baseline",
+                "reference": "b9b6f054d845dab446185693d1412dd26fd48714"
             },
             "require": {
                 "php": "^8.4"
@@ -4279,7 +4279,7 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
-        "bagart/devops-baseline": 20
+        "bagart/telegram-devops-baseline": 20
     },
     "prefer-stable": false,
     "prefer-lowest": false,
