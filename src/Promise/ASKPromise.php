@@ -36,6 +36,9 @@ final class ASKPromise implements ASKPromiseContract, ASKAwaitableContract
 
     private bool $flushing = false;
 
+    /** @var list<Throwable> */
+    private array $callbackErrors = [];
+
     public function __construct(ASKTickableContract ...$tickables)
     {
         $this->tickables = $tickables;
@@ -61,11 +64,15 @@ final class ASKPromise implements ASKPromiseContract, ASKAwaitableContract
 
     public function getState(): string
     {
+        $this->maybeTransition();
+
         return $this->state;
     }
 
     public function getValue(): mixed
     {
+        $this->maybeTransition();
+
         if ($this->state !== self::FULFILLED) {
             throw new ASKTechnicalException('Promise is not fulfilled');
         }
@@ -75,12 +82,23 @@ final class ASKPromise implements ASKPromiseContract, ASKAwaitableContract
 
     public function getReason(): ?Throwable
     {
+        $this->maybeTransition();
+
         return $this->reason;
     }
 
     public function resolve(mixed $value): void
     {
         if ($this->isSettled()) {
+            return;
+        }
+
+        if ($value instanceof ASKPromiseContract) {
+            $value->then(
+                fn (mixed $v) => $this->resolve($v),
+                fn (Throwable $e) => $this->reject($e),
+            );
+
             return;
         }
 
@@ -189,26 +207,25 @@ final class ASKPromise implements ASKPromiseContract, ASKAwaitableContract
 
         $this->flushing = true;
 
-        $callbacks = $this->onFulfilled;
-        $this->onFulfilled = [];
+        while ($this->onFulfilled !== []) {
+            $callbacks = $this->onFulfilled;
+            $this->onFulfilled = [];
 
-        foreach ($callbacks as $fn) {
-            try {
-                $fn($this->value);
-            } catch (ASKInterruptException $e) {
-                $this->flushing = false;
-                throw $e;
-            } catch (Throwable $e) {
-                $this->state = self::REJECTED;
-                $this->reason = $e;
-                $this->flushing = false;
-                $this->flushRejected();
-
-                return;
+            foreach ($callbacks as $fn) {
+                try {
+                    $fn($this->value);
+                } catch (ASKInterruptException $e) {
+                    $this->flushing = false;
+                    throw $e;
+                } catch (Throwable $e) {
+                    $this->callbackErrors[] = $e;
+                }
             }
         }
 
         $this->flushing = false;
+
+        $this->maybeTransition();
     }
 
     private function flushRejected(): void
@@ -222,15 +239,28 @@ final class ASKPromise implements ASKPromiseContract, ASKAwaitableContract
         $callbacks = $this->onRejected;
         $this->onRejected = [];
 
+        $originalReason = $this->reason;
+
         foreach ($callbacks as $fn) {
             try {
-                $fn($this->reason);
-            } catch (Throwable $e) {
-                $this->reason = $e;
+                $fn($originalReason);
+            } catch (Throwable) {
+                // Callback failure is logged/diagnosed elsewhere if needed.
+                // The original rejection reason is immutable after rejection.
             }
         }
 
         $this->flushing = false;
+    }
+
+    private function maybeTransition(): void
+    {
+        if ($this->state === self::FULFILLED && $this->callbackErrors !== []) {
+            $this->state = self::REJECTED;
+            $this->reason = $this->callbackErrors[0];
+            $this->callbackErrors = [];
+            $this->flushRejected();
+        }
     }
 
     public function await(bool $unwrap = true): mixed
@@ -245,20 +275,19 @@ final class ASKPromise implements ASKPromiseContract, ASKAwaitableContract
             return $this->wait($unwrap);
         }
 
+        // Resume callbacks: these wake the suspended Fiber when the promise settles.
+        // The return values from Fiber::resume() are unused by design — the Fiber
+        // re-enters await() at the point of Fiber::suspend() and continues from there.
         $this->then(
-            function (mixed $value) use ($fiber): mixed {
+            static function () use ($fiber): void {
                 if ($fiber->isSuspended()) {
                     $fiber->resume();
                 }
-
-                return $value;
             },
-            function (?Throwable $reason) use ($fiber): ?Throwable {
+            static function () use ($fiber): void {
                 if ($fiber->isSuspended()) {
                     $fiber->resume();
                 }
-
-                return $reason;
             },
         );
 
@@ -271,6 +300,8 @@ final class ASKPromise implements ASKPromiseContract, ASKAwaitableContract
 
     private function unwrap(bool $unwrap = true): mixed
     {
+        $this->maybeTransition();
+
         if (
             $unwrap
             && ($this->state === self::REJECTED || $this->state === self::CANCELED)
@@ -283,16 +314,26 @@ final class ASKPromise implements ASKPromiseContract, ASKAwaitableContract
 
     public function isCompleted(): bool
     {
+        $this->maybeTransition();
+
         return $this->isSettled();
     }
 
     public function result(): mixed
     {
+        $this->maybeTransition();
+
+        if ($this->state === self::REJECTED || $this->state === self::CANCELED) {
+            throw $this->reason;
+        }
+
         return $this->value;
     }
 
     public function error(): ?Throwable
     {
+        $this->maybeTransition();
+
         return $this->reason;
     }
 

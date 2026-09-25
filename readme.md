@@ -222,8 +222,8 @@ work and return `true` when fully stopped.
 Run the example daemon (fetches USD→EUR rate every 10s):
 
 ```bash
-php commands/example-daemon.php
-php commands/example-daemon.php --interval=5
+php cmd/example-daemon.php
+php cmd/example-daemon.php --interval=5
 ```
 
 ## Directory Structure

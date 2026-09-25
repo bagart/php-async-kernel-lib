@@ -7,12 +7,11 @@ namespace BAGArt\AsyncKernel\Contracts;
 /**
  * Locker contract (distributed/local locking).
  *
- * Extended in Phase 0 (outbound pipeline) with methods accepting explicit TTL and owner —
- * needed for ordering lock (todo.md §0.2, §3.5): TTL guarantees auto-release on worker crash,
+ * Extended with methods accepting explicit TTL and owner —
+ * TTL guarantees auto-release on worker crash,
  * owner ensures safe release (only the owner releases the lock).
  *
- * Existing methods {@see acquire()} / {@see release()} remain unchanged
- * (todo.md §0.1: extend by adding only, do not modify existing).
+ * Existing methods {@see acquire()} / {@see release()} remain unchanged.
  */
 interface ASKLockerContract
 {

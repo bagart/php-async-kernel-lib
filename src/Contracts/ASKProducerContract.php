@@ -22,4 +22,12 @@ interface ASKProducerContract
      * 100 = design limit. >100 = overloaded (e.g. 1000 = 10x overload).
      */
     public function pressure(): int;
+
+    /**
+     * Called when a producer fiber terminates with an error.
+     *
+     * Implementations should log or report the error. The kernel does not
+     * restart the fiber — the producer is removed from the active set.
+     */
+    public function onError(\Throwable $error): void;
 }

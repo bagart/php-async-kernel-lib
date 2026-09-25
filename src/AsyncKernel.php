@@ -56,6 +56,9 @@ final class AsyncKernel implements AsyncKernelContract
 
     private ShutdownPhase $shutdownPhase = ShutdownPhase::RUNNING;
 
+    /** @var list<array{daemon: ASKDaemonContract, tickableIds: list<int>, producerIds: list<int>}> Pending restarts to apply after the current tick completes. */
+    private array $pendingDaemonRestarts = [];
+
     private ?ASKShutdownContext $shutdownContext = null;
 
     public function __construct(
@@ -63,11 +66,15 @@ final class AsyncKernel implements AsyncKernelContract
         private readonly ASKKernelSleepStrategy $sleepStrategy = new AdaptiveKernelSleepStrategy(),
         private readonly ExceptionPolicy $exceptionPolicy = ExceptionPolicy::INTERRUPT,
         private int $shutdownTimeout = 5,
+        private readonly int $drainTimeout = 30_000,
         private readonly ASKClockContract $clock = new ASKClock(),
     ) {
         $this->timer = new ASKTimer($this->clock);
         $this->addTickable($this->timer);
 
+        // Intentional static side-effect: ASK::sleep() is a convenience facade
+        // that requires a globally registered timer. The kernel is the natural
+        // owner of that timer, so it registers it once at construction time.
         ASK::setTimer($this->timer);
     }
 
@@ -194,7 +201,13 @@ final class AsyncKernel implements AsyncKernelContract
         } catch (Throwable $e) {
             throw $e;
         } finally {
-            $this->doShutdown();
+            try {
+                $this->doShutdown();
+            } catch (Throwable $e) {
+                $this->logger->error(
+                    "[AsyncKernel] doShutdown() failed: {$e->getMessage()}"
+                );
+            }
         }
     }
 
@@ -240,9 +253,29 @@ final class AsyncKernel implements AsyncKernelContract
             } catch (Throwable $e) {
                 if ($tickable instanceof ASKDaemonContract) {
                     $tickable->onError($e);
+
+                    if ($this->exceptionPolicy === ExceptionPolicy::RESTART_DAEMON) {
+                        $daemonId = spl_object_id($tickable);
+                        $this->pendingDaemonRestarts[$daemonId] = $this->captureDaemonRegistration($tickable);
+                        $this->logger->warning(
+                            "[AsyncKernel] Daemon '{$tickable->name()}' will be restarted after tick: {$e->getMessage()}"
+                        );
+                    }
                 } else {
+                    // Plain (non-daemon) tickables have no onError() lifecycle,
+                    // but the failure must still reach run() so exceptionPolicy
+                    // applies (contract: 06 §44–§46 — INTERRUPT propagates).
                     throw $e;
                 }
+            }
+        }
+
+        if ($this->pendingDaemonRestarts !== []) {
+            $restarts = $this->pendingDaemonRestarts;
+            $this->pendingDaemonRestarts = [];
+
+            foreach ($restarts as $registration) {
+                $this->restartDaemon($registration);
             }
         }
 
@@ -404,6 +437,74 @@ final class AsyncKernel implements AsyncKernelContract
         return $this->clock->time() >= $lastRun + $interval;
     }
 
+    /**
+     * Snapshot a daemon's current tickable and producer registrations so they
+     * can be re-registered after the daemon is restarted.
+     *
+     * @return array{daemon: ASKDaemonContract, tickableIds: list<int>, producerIds: list<int>}
+     */
+    private function captureDaemonRegistration(ASKDaemonContract $daemon): array
+    {
+        $tickableIds = [];
+        $producerIds = [];
+
+        if ($daemon instanceof ASKTickableContract) {
+            $tickableIds[] = spl_object_id($daemon);
+        }
+
+        if ($daemon instanceof WithASKTickableContract) {
+            foreach ($daemon->tickable() as $sub) {
+                if ($sub !== $daemon) {
+                    $tickableIds[] = spl_object_id($sub);
+                }
+            }
+        }
+
+        if ($daemon instanceof ASKProducerContract) {
+            $producerIds[] = spl_object_id($daemon);
+        }
+
+        if ($daemon instanceof WithASKProducerContract) {
+            foreach ($daemon->producers() as $producer) {
+                $producerIds[] = spl_object_id($producer);
+            }
+        }
+
+        return [
+            'daemon' => $daemon,
+            'tickableIds' => $tickableIds,
+            'producerIds' => $producerIds,
+        ];
+    }
+
+    /**
+     * Remove a daemon and its tickables/producers, re-warm, and re-add it.
+     */
+    private function restartDaemon(array $registration): void
+    {
+        $daemon = $registration['daemon'];
+
+        foreach ($registration['tickableIds'] as $id) {
+            unset($this->tickables[$id]);
+        }
+
+        foreach ($registration['producerIds'] as $id) {
+            unset($this->producers[$id], $this->producerIntervals[$id], $this->lastProduceAt[$id], $this->producerFibers[$id], $this->producerFiberErrors[$id]);
+        }
+
+        unset($this->daemons[spl_object_id($daemon)]);
+
+        if ($daemon instanceof ASKWarmableContract) {
+            $daemon->warm();
+        }
+
+        $this->addDaemon($daemon);
+
+        $this->logger->info(
+            "[AsyncKernel] Daemon '{$daemon->name()}' restarted successfully"
+        );
+    }
+
     public function isIdle(): bool
     {
         foreach ($this->tickables as $tickable) {
@@ -516,7 +617,8 @@ final class AsyncKernel implements AsyncKernelContract
             return $priorityB <=> $priorityA;
         });
 
-        $globalDeadline = microtime(true) + $this->shutdownTimeout;
+        $globalDeadline = microtime(true) + ($this->drainTimeout / 1000);
+        $drainDeadlineNs = hrtime(true) + ($this->drainTimeout * 1_000_000);
         $notFinished = [];
         $startTime = microtime(true);
         $daemonDeadlines = [];
@@ -541,15 +643,42 @@ final class AsyncKernel implements AsyncKernelContract
             foreach ($activePool as $daemon) {
                 $id = spl_object_id($daemon);
 
-                if (microtime(true) >= $daemonDeadlines[$id]) {
-                    if (!$daemon->shutdown($this->shutdownContext)) {
+                if (hrtime(true) >= $drainDeadlineNs) {
+                    $this->logger->warning(
+                        "[AsyncKernel] drain timeout ({$this->drainTimeout}ms) — force-stopping remaining daemons"
+                    );
+                    $this->forceShutdown();
+
+                    foreach ($activePool as $remaining) {
+                        $notFinished[] = $remaining->name();
+                    }
+
+                    $activePool = [];
+
+                    break 2;
+                }
+
+                $timedOut = microtime(true) >= $daemonDeadlines[$id];
+
+                try {
+                    $result = $daemon->shutdown($this->shutdownContext);
+                } catch (Throwable $e) {
+                    $this->logger->error(
+                        "[AsyncKernel] daemon '{$daemon->name()}' threw during shutdown: "
+                        .$e::class.": {$e->getMessage()}"
+                    );
+                    $result = false;
+                }
+
+                if ($timedOut) {
+                    if (!$result) {
                         $notFinished[] = $daemon->name();
                     }
 
                     continue;
                 }
 
-                if (!$daemon->shutdown($this->shutdownContext)) {
+                if (!$result) {
                     $stillActive[] = $daemon;
                 } else {
                     $anyProgress = true;
@@ -574,8 +703,27 @@ final class AsyncKernel implements AsyncKernelContract
             }
         }
 
-        foreach ($activePool as $daemon) {
-            if (!$daemon->shutdown($this->shutdownContext)) {
+        // Final attempt: only call shutdown() on remaining daemons if we haven't
+        // already exceeded the global deadline. An extra call here could add
+        // another 5s+ wait if the deadline has already passed.
+        if (microtime(true) < $globalDeadline) {
+            foreach ($activePool as $daemon) {
+                try {
+                    $result = $daemon->shutdown($this->shutdownContext);
+                } catch (Throwable $e) {
+                    $this->logger->error(
+                        "[AsyncKernel] daemon '{$daemon->name()}' threw during final shutdown: "
+                        .$e::class.": {$e->getMessage()}"
+                    );
+                    $result = false;
+                }
+
+                if (!$result) {
+                    $notFinished[] = $daemon->name();
+                }
+            }
+        } else {
+            foreach ($activePool as $daemon) {
                 $notFinished[] = $daemon->name();
             }
         }

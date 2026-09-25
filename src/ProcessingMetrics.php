@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace BAGArt\AsyncKernel;
 
-use BAGArt\ASKClient\Contracts\Queue\ActivePartitionsContract;
-use BAGArt\ASKClient\Contracts\Queue\ASKQueueAdapterContract;
-use BAGArt\ASKClient\Contracts\Queue\PartitionStreamContract;
-use BAGArt\ASKClient\Contracts\Queue\PendingAckRegistryContract;
+use BAGArt\AskQueue\Contracts\ActivePartitionsContract;
+use BAGArt\AskQueue\Contracts\ASKQueueAdapterContract;
+use BAGArt\AskQueue\Contracts\PartitionStreamContract;
+use BAGArt\AskQueue\Contracts\PendingAckRegistryContract;
 use BAGArt\AsyncKernel\Contracts\MetricsContract;
 
 final class ProcessingMetrics implements MetricsContract
@@ -172,6 +172,15 @@ final class ProcessingMetrics implements MetricsContract
         return $this->totalExecutionTimeMs / $this->executionCount;
     }
 
+    /**
+     * Returns a snapshot of all metrics as an associative array.
+     *
+     * This method is Fiber-safe: it reads only scalar counters and
+     * derived values that are updated atomically via simple integer
+     * operations. No external state or mutable references are returned.
+     *
+     * @return array<string, mixed>
+     */
     public function snapshot(): array
     {
         return [

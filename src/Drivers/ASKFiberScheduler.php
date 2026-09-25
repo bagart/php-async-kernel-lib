@@ -8,6 +8,7 @@ use BAGArt\AsyncKernel\Contracts\ASKResourceLease;
 use BAGArt\AsyncKernel\Contracts\ASKSchedulerContract;
 use BAGArt\AsyncKernel\Contracts\ASKSocketSchedulerContract;
 use BAGArt\AsyncKernel\Exceptions\ASKForceShutdownException;
+use BAGArt\AsyncKernel\Promise\ASKDeferred;
 use Closure;
 use Fiber;
 use SplObjectStorage;
@@ -22,11 +23,8 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
     private const int SLOW_POLL_US = 200_000;
     private const int DEFAULT_BATCH_SIZE = 10;
 
-    /** @var SplQueue<Fiber> */
+    /** @var SplQueue<Fiber> Chosen for O(1) enqueue/dequeue; under sustained throughput, linked-list nodes may cause allocator fragmentation. A ring buffer would reduce fragmentation but loses O(1) dequeue. */
     private SplQueue $queue;
-
-    /** @var array<int, array<Fiber>> */
-    private array $sleeping = [];
 
     /** @var array<int, resource> */
     private array $readSockets = [];
@@ -43,6 +41,9 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
     /** @var array<int, ASKResourceLease> */
     private array $leases = [];
 
+    /** @var SplObjectStorage<Fiber, \BAGArt\AsyncKernel\Promise\ASKDeferred> */
+    private SplObjectStorage $fiberFutures;
+
     private bool $stopped = false;
 
     private ?float $pollingSocketsSince = null;
@@ -51,6 +52,7 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
         private readonly int $batchSize = self::DEFAULT_BATCH_SIZE,
     ) {
         $this->queue = new SplQueue();
+        $this->fiberFutures = new SplObjectStorage();
     }
 
     public function enqueue(Fiber|Closure $fiber): void
@@ -70,10 +72,21 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
         return $this->queue->count();
     }
 
+    public function track(Fiber $fiber, ASKDeferred $future): void
+    {
+        $this->fiberFutures[$fiber] = $future;
+    }
+
+    public function untrack(Fiber $fiber, ASKDeferred $future): void
+    {
+        if (isset($this->fiberFutures[$fiber]) && $this->fiberFutures[$fiber] === $future) {
+            unset($this->fiberFutures[$fiber]);
+        }
+    }
+
     public function isIdle(): bool
     {
         return $this->queue->isEmpty()
-            && $this->sleeping === []
             && $this->readSockets === []
             && $this->writeSockets === [];
     }
@@ -81,12 +94,12 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
     public function pressure(): int
     {
         $socketCount = count($this->readSockets) + count($this->writeSockets);
+        $queueCount = $this->queue->count();
 
-        if ($socketCount === 0) {
-            return 0;
-        }
+        $socketPressure = $socketCount === 0 ? 0 : (int) min(100, ($socketCount / 50) * 100);
+        $queuePressure = $queueCount === 0 ? 0 : (int) min(100, ($queueCount / 100) * 100);
 
-        return (int)min(100, ($socketCount / 50) * 100);
+        return max($socketPressure, $queuePressure);
     }
 
     public function forceStop(?Closure $onFiberForceStopped = null): void
@@ -167,29 +180,33 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
 
     public function tick(int $systemPressure): void
     {
-        $this->wakeSleepingFibers();
-
         $processed = 0;
 
         while (!$this->queue->isEmpty() && $processed < $this->batchSize) {
+            $processed++;
             $fiber = $this->queue->dequeue();
 
             if ($fiber->isTerminated()) {
-                $processed++;
+                $this->untrackByFiber($fiber);
                 continue;
             }
 
-            if (!$fiber->isStarted()) {
-                $fiber->start();
-            } elseif ($fiber->isSuspended()) {
-                $fiber->resume();
+            try {
+                if (!$fiber->isStarted()) {
+                    $fiber->start();
+                } elseif ($fiber->isSuspended()) {
+                    $fiber->resume();
+                }
+            } catch (Throwable $e) {
+                $this->rejectAndUntrackFiber($fiber, $e);
+                continue;
             }
 
-            if (!$fiber->isTerminated() && $fiber->isSuspended()) {
+            if ($fiber->isTerminated()) {
+                $this->untrackByFiber($fiber);
+            } elseif ($fiber->isSuspended()) {
                 $this->queue->enqueue($fiber);
             }
-
-            $processed++;
         }
 
         if ($this->queue->isEmpty()) {
@@ -241,8 +258,8 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
         }
 
         if ($this->stopped) {
-            $this->pollingSocketsSince ??= microtime(true);
-            $elapsedMs = (microtime(true) - $this->pollingSocketsSince) * 1000;
+            $this->pollingSocketsSince ??= hrtime(true) / 1e9;
+            $elapsedMs = ((hrtime(true) / 1e9) - $this->pollingSocketsSince) * 1000;
 
             $timeoutUs = match (true) {
                 $elapsedMs < 2_000 => self::FAST_POLL_US,
@@ -257,43 +274,7 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
 
         $this->pollingSocketsSince = null;
 
-        $sec = 1;
-        $usec = 0;
-
-        if ($this->sleeping !== []) {
-            $nearestWakeup = min(array_keys($this->sleeping));
-            $diff = $nearestWakeup - microtime(true);
-
-            if ($diff > 0) {
-                $sec = (int)$diff;
-                $usec = (int)(($diff - $sec) * 1_000_000);
-            } else {
-                $sec = 0;
-            }
-        }
-
-        $this->pollSockets($sec, $usec);
-    }
-
-    // ===== wakeSleepingFibers =====
-
-    private function wakeSleepingFibers(): void
-    {
-        if ($this->sleeping === []) {
-            return;
-        }
-
-        $now = microtime(true);
-
-        foreach ($this->sleeping as $wakeupTime => $fibers) {
-            if ($wakeupTime <= $now) {
-                foreach ($fibers as $fiber) {
-                    $this->queue->enqueue($fiber);
-                }
-
-                unset($this->sleeping[$wakeupTime]);
-            }
-        }
+        $this->pollSockets(1, 0);
     }
 
     // ===== forceStop helpers =====
@@ -302,11 +283,6 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
     {
         $fibers = new SplObjectStorage();
 
-        foreach ($this->sleeping as $fiberGroup) {
-            foreach ($fiberGroup as $fiber) {
-                $fibers[$fiber] = null;
-            }
-        }
         foreach ($this->waitingReadFibers as $fiber) {
             $fibers[$fiber] = null;
         }
@@ -344,9 +320,9 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
 
     private function drainCancelledFibers(SplObjectStorage $fibers): void
     {
-        $deadline = microtime(true) + 5;
+        $deadline = (hrtime(true) / 1e9) + 5;
 
-        while (microtime(true) < $deadline) {
+        while ((hrtime(true) / 1e9) < $deadline) {
             $allTerminated = true;
 
             foreach ($fibers as $fiber) {
@@ -369,13 +345,13 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
 
     private function cleanup(): void
     {
-        $this->sleeping = [];
         $this->readSockets = [];
         $this->writeSockets = [];
         $this->waitingReadFibers = [];
         $this->waitingWriteFibers = [];
         $this->queue = new SplQueue();
         $this->leases = [];
+        $this->fiberFutures = new SplObjectStorage();
     }
 
     private function cleanupOrphanedLeases(): void
@@ -384,5 +360,19 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
             $lease->cancel();
         }
         $this->leases = [];
+    }
+
+    private function rejectAndUntrackFiber(Fiber $fiber, Throwable $e): void
+    {
+        if (isset($this->fiberFutures[$fiber])) {
+            $future = $this->fiberFutures[$fiber];
+            unset($this->fiberFutures[$fiber]);
+            $future->reject($e);
+        }
+    }
+
+    private function untrackByFiber(Fiber $fiber): void
+    {
+        unset($this->fiberFutures[$fiber]);
     }
 }

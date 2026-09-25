@@ -9,7 +9,7 @@ use BAGArt\AsyncKernel\Contracts\Daemons\ASKTickableContract;
 
 interface AsyncKernelContract
 {
-    public function addDaemon(ASKDaemonContract $daemon, int $producerProducerInterval = 0): self;
+    public function addDaemon(ASKDaemonContract $daemon, int $producerInterval = 0): self;
 
     public function addTickable(?ASKTickableContract $tickable): self;
 

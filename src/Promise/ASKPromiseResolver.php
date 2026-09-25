@@ -6,6 +6,7 @@ namespace BAGArt\AsyncKernel\Promise;
 
 use BAGArt\AsyncKernel\Contracts\ASKPromiseContract;
 use BAGArt\AsyncKernel\Contracts\Promise\ASKPromiseResolverContract;
+use BAGArt\AsyncKernel\Exceptions\ASKAggregateException;
 use BAGArt\AsyncKernel\Exceptions\ASKException;
 use BAGArt\AsyncKernel\Exceptions\ASKTechnicalException;
 use Fiber;
@@ -17,7 +18,7 @@ final class ASKPromiseResolver implements ASKPromiseResolverContract
 
     public function isReady(): bool
     {
-        return !empty(Fiber::getCurrent());
+        return Fiber::getCurrent() !== null;
     }
 
     public function await(
@@ -59,7 +60,9 @@ final class ASKPromiseResolver implements ASKPromiseResolverContract
 
         try {
             Fiber::suspend();
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            error_log("[ASK][WARNING] Promise rejection callback error: " . $e->getMessage());
+            throw $e;
         }
     }
 
@@ -92,29 +95,38 @@ final class ASKPromiseResolver implements ASKPromiseResolverContract
 
         $this->awaiting = $pending;
 
-        $firstException = null;
+        /** @var list<\Throwable> $caughtExceptions */
+        $caughtExceptions = [];
 
         foreach ($ready as $slot) {
+            $fiber = $slot['fiber'];
+
+            if (!$fiber->isSuspended()) {
+                continue;
+            }
+
             try {
                 if ($slot['outcome'] === ASKPromiseContract::FULFILLED) {
-                    $slot['fiber']->resume($slot['promise']->getValue());
+                    $fiber->resume($slot['promise']->getValue());
                 } else {
                     $reason = $slot['outcome'] === 'timeout'
                         ? new ASKException('[PromiseResolver::await] Promise timeout')
                         : ($slot['promise']->getReason()
                             ?? new ASKException('[PromiseResolver] Rejected without reason'));
 
-                    $slot['fiber']->throw($reason);
+                    $fiber->throw($reason);
                 }
             } catch (\Throwable $e) {
-                if ($firstException === null) {
-                    $firstException = $e;
-                }
+                $caughtExceptions[] = $e;
             }
         }
 
-        if ($firstException !== null) {
-            throw $firstException;
+        if ($caughtExceptions !== []) {
+            if (count($caughtExceptions) === 1) {
+                throw $caughtExceptions[0];
+            }
+
+            throw new ASKAggregateException($caughtExceptions);
         }
     }
 

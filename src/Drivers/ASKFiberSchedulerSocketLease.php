@@ -46,4 +46,18 @@ final class ASKFiberSchedulerSocketLease implements ASKResourceLease
     {
         $this->release();
     }
+
+    public function __destruct()
+    {
+        if (!$this->released) {
+            $scheduler = $this->schedulerRef->get();
+            if ($scheduler !== null) {
+                trigger_error(
+                    "[ASKFiberSchedulerSocketLease] Socket lease for ID {$this->socketId} "
+                    ."was abandoned without release(). Socket watch may leak.",
+                    E_USER_WARNING,
+                );
+            }
+        }
+    }
 }

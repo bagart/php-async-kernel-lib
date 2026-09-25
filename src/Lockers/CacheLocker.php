@@ -5,18 +5,19 @@ declare(strict_types=1);
 namespace BAGArt\AsyncKernel\Lockers;
 
 use BAGArt\AsyncKernel\Contracts\ASKLockerContract;
+use BAGArt\AsyncKernel\Exceptions\ASKTechnicalException;
 use Psr\SimpleCache\CacheInterface;
 
 /**
  * Locker based on PSR-16 CacheInterface.
  *
  * Uses atomic add() (if the backend supports it) for set-if-not-exists,
- * otherwise falls back to has()+set(). Owner token is stored as the key value —
- * release checks the owner before deletion.
+ * otherwise throws — non-atomic has()+set() would introduce a TOCTOU race.
+ * Owner token is stored as the key value — release checks the owner before deletion.
  *
  * New methods {@see acquireWithTtl()}/{@see releaseWithOwner()} allow explicit TTL
- * and owner (for ordering lock, todo.md §3.5). Existing acquire()/release()
- * delegate to them with defaults (TTL=30s, owner=$this->token).
+ * and owner. Existing acquire()/release() delegate to them with defaults
+ * (TTL=30s, owner=$this->token).
  */
 final class CacheLocker implements ASKLockerContract
 {
@@ -47,24 +48,23 @@ final class CacheLocker implements ASKLockerContract
         $cacheKey = self::KEY_PREFIX.$key;
         $ownerToken = $owner ?? $this->token;
 
-        // Atomic add() — preferred (set-if-not-exists in a single call).
+        // Atomic add() — the only safe set-if-not-exists primitive for mutual exclusion.
         if (method_exists($this->cache, 'add')) {
-            return (bool)$this->cache->add(
+            return (bool) $this->cache->add(
                 $cacheKey,
                 $ownerToken,
                 $ttl,
             );
         }
 
-        // Fallback: has()+set() — NOT atomic (race window), but works with any PSR-16.
-        if ($this->cache->has($cacheKey)) {
-            return false;
-        }
-
-        return (bool)$this->cache->set(
-            $cacheKey,
-            $ownerToken,
-            $ttl,
+        // has()+set() is NOT atomic — two processes can both observe "has" as false
+        // and both succeed in setting, breaking mutual exclusion. Refuse to pretend
+        // otherwise. Callers must provide a cache backend that supports add() (e.g.
+        // Redis, APCu) for distributed locking.
+        throw new ASKTechnicalException(
+            '[CacheLocker] Cache backend does not support atomic add(). '
+            .'Distributed locking requires an atomic set-if-not-exists primitive. '
+            .'Use a Redis, APCu, or similar cache driver that implements add().'
         );
     }
 

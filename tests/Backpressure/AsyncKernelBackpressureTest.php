@@ -64,6 +64,11 @@ final class PressureCapturingProducer implements ASKProducerContract
     {
         return $this->pressure;
     }
+
+    public function onError(\Throwable $error): void
+    {
+        // No-op for testing purposes.
+    }
 }
 
 describe('AsyncKernel backpressure', function () {

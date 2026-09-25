@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace BAGArt\AsyncKernel\Wrappers;
 
-use BAGArt\ASKClient\Contracts\Queue\ASKQueueAdapterContract;
+use BAGArt\AskQueue\Contracts\ASKQueueAdapterContract;
 
+/**
+ * @deprecated Use BAGArt\AskQueue\ASKQueueWrapper directly.
+ *
+ * Backward-compatible class. The canonical implementation now lives in bagart/ask-queue.
+ * This class delegates to the same contract and will be replaced by a class_alias in a future release.
+ */
 final class ASKQueueWrapper
 {
     public function __construct(

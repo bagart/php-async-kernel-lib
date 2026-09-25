@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace BAGArt\AsyncKernel\Exceptions;
 
-class ASKInterruptException extends ASKException
+final class ASKInterruptException extends ASKException
 {
     public function __construct(
         public readonly string $source,

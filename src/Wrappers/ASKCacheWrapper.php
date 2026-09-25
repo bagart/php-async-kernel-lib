@@ -13,6 +13,9 @@ use Psr\SimpleCache\CacheInterface;
 /**
  * @implements \Illuminate\Contracts\Cache\Store
  */
+// NOTE: add() provides atomic set-if-not-exists semantics (H1/H3), but the
+// class does NOT implement a cross-package AtomicCacheContract yet — the
+// AskQueue/ASKClient contract extraction (task C1/C2) is still open.
 final class ASKCacheWrapper implements \Psr\SimpleCache\CacheInterface
 {
     public function __construct(
@@ -65,8 +68,20 @@ final class ASKCacheWrapper implements \Psr\SimpleCache\CacheInterface
         return $this->cache->set($key, $value, $ttl);
     }
 
+    public function supportsAtomic(): bool
+    {
+        return method_exists($this->cache, 'add');
+    }
+
     public function add(string $key, mixed $value, DateTimeInterface|DateInterval|int|null $ttl = null): bool
     {
+        if (!$this->supportsAtomic()) {
+            throw new \BAGArt\AsyncKernel\Exceptions\ASKTechnicalException(
+                'Cache backend does not support add() (atomic set-if-not-exists). '
+                .'Use a cache driver that implements add() (e.g., APCu, Redis, Memcached).'
+            );
+        }
+
         return $this->cache->add($key, $value, $ttl);
     }
 
@@ -144,10 +159,16 @@ final class ASKCacheWrapper implements \Psr\SimpleCache\CacheInterface
             return $this->cache->touch($key, $seconds);
         }
 
-        return $this->cache->set(
-            $key,
-            $this->cache->get($key, $seconds) ?? null,
-            $seconds
-        );
+        // Fallback: retrieve the current value and re-set with the new TTL.
+        // A missing key must NOT be confused with a cached null — use has()
+        // to distinguish, then get() without a default (returns null for both
+        // missing and null-valued, but we already know it exists via has()).
+        if (!$this->cache->has($key)) {
+            return false;
+        }
+
+        $currentValue = $this->cache->get($key);
+
+        return $this->cache->set($key, $currentValue, $seconds);
     }
 }

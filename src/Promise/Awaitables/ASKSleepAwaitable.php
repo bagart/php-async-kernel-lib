@@ -66,7 +66,18 @@ final class ASKSleepAwaitable extends ASKAwaitable
 
         // Sync fallback: no Fiber / no event loop is driving us.
         // Pump the timer inline until this awaitable resolves.
+        // Guard against infinite loop: max 30 seconds of busy-pumping.
+        $deadline = (hrtime(true) / 1e9) + 30.0;
+        $maxIterations = 100_000;
+        $iterations = 0;
+
         while (!$this->isCompleted()) {
+            if (++$iterations >= $maxIterations || (hrtime(true) / 1e9) >= $deadline) {
+                throw new \RuntimeException(
+                    '[ASKSleepAwaitable] Sync fallback timed out after 30s — '
+                    . 'await() must be called inside a Fiber or with a running event loop'
+                );
+            }
             $this->timer->tick(0);
         }
 

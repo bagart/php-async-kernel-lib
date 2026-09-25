@@ -42,6 +42,11 @@ final class ASKShutdownContext
         return $this->forced || $this->phase === ShutdownPhase::FORCING;
     }
 
+    public function deadline(): float
+    {
+        return $this->deadline;
+    }
+
     public function remainingTime(): float
     {
         return max(0.0, $this->deadline - microtime(true));

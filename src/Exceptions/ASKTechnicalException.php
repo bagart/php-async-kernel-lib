@@ -4,6 +4,6 @@ declare(strict_types=1);
 
 namespace BAGArt\AsyncKernel\Exceptions;
 
-class ASKTechnicalException extends ASKException
+final class ASKTechnicalException extends ASKException
 {
 }

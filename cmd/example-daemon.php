@@ -191,8 +191,8 @@ CliActions::initRuntime($options);
 
 if (isset($options['help'])) {
     echo "Usage:
-php commands/example-daemon.php                       # Default: process every 1s
-php commands/example-daemon.php --interval=5          # Process every 5s
+php cmd/example-daemon.php                       # Default: process every 1s
+php cmd/example-daemon.php --interval=5          # Process every 5s
 
 Options:
   --interval=N                            Seconds between processing cycles (default: 1)

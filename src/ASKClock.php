@@ -41,6 +41,13 @@ final class ASKClock implements ASKClockContract
         return hrtime(true);
     }
 
+    /**
+     * Precision sleep using usleep() with hrtime-based busy-wait for the final sub-millisecond chunk.
+     *
+     * Note: usleep() granularity is 100μs–1ms on most platforms.
+     * Actual sleep may overshoot by up to 1ms. For sub-millisecond precision,
+     * the caller should use hrtime()-based busy-wait (as this loop already does for the final microseconds).
+     */
     public function sleep(int $microseconds): void
     {
         if ($microseconds <= 0) {

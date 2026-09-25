@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use BAGArt\AsyncKernel\Lockers\CacheLocker;
+use BAGArt\AsyncKernel\Exceptions\ASKTechnicalException;
 use Psr\SimpleCache\CacheInterface;
 
 /**
@@ -163,8 +164,8 @@ describe('CacheLocker::releaseWithOwner', function () {
 });
 
 describe('CacheLocker fallback path (no add() method)', function () {
-    it('works with a cache that has no add() — uses has()+set() fallback', function () {
-        // Cache without add() — testing the has()+set() fallback path.
+    it('throws ASKTechnicalException when cache has no add()', function () {
+        // Cache without add() — CacheLocker must refuse to acquire, not fake atomicity.
         $cache = new class () implements CacheInterface {
             /** @var array<string, mixed> */
             private array $store = [];
@@ -215,12 +216,12 @@ describe('CacheLocker fallback path (no add() method)', function () {
                 return array_key_exists($key, $this->store);
             }
 
-            // Deliberately no add() — CacheLocker must use the fallback path.
+            // Deliberately no add() — CacheLocker must throw.
         };
 
         $locker = new CacheLocker($cache);
 
-        expect($locker->acquireWithTtl('chat:1', 60, 'owner-A'))->toBeTrue()
-            ->and($locker->acquireWithTtl('chat:1', 60, 'owner-B'))->toBeFalse();
+        expect(fn () => $locker->acquireWithTtl('chat:1', 60, 'owner-A'))
+            ->toThrow(ASKTechnicalException::class);
     });
 });

@@ -124,6 +124,15 @@ final class ASKFnDaemon implements
         return $this->name;
     }
 
+    /**
+     * Returns the scheduler as a tickable for the kernel to drive.
+     *
+     * The result is memoized because the kernel calls tickable() during
+     * addDaemon() to extract sub-tickables, and again during isIdle()/queueSize()
+     * aggregation. Memoization ensures the same scheduler instance is returned
+     * each time, avoiding duplicate registration and keeping identity stable
+     * for SplObjectStorage-based tracking in the kernel.
+     */
     public function tickable(): array
     {
         return $this->tickableMemoize ??= array_filter(
