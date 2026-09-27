@@ -105,6 +105,15 @@ Grilling questions Q1–Q10 (`docs/questions/2026-09-20-diff-review.md`) resolve
 - **Latent bug fixed**: `ASKAggregateException::__construct` passed a `Throwable` as `$code` — corrected to the `previous` parameter (was unreachable until C5 tests actually aggregated).
 - **Suite**: 242 passed, 0 failed (`vendor/bin/pest`).
 
+## Phase 5 — Remaining Issues Closed (2026-09-26)
+
+Остаток ревью (C1–C2, M1–M9, L1–L5) закрыт мульагентно: локальные queue-контракты
+ядра вместо несуществующего `BAGArt\AskQueue`, общий дедлайн DRAINING
+(возвращает параметр, удалённый в Phase 4 — «Dead Parameter Removal»), контракты
+`result()`/`setTimer()`/`tickable()`/`snapshot()` зафиксированы документацией и
+пин-тестами, покрытие 242 → 367 тестов. Детали и статус-матрица:
+`sdd/01-remaining-kernel-issues.md`.
+
 ## Known Limitations
 
-- **C1/C2 open — AskQueue contract extraction not done**: `ASKQueueWrapper` and `ProcessingMetrics` still import `BAGArt\AskQueue\Contracts\*` — a namespace with no package/autoload behind it (fatal if those classes load; no tests cover them). `ASKCacheWrapper` no longer declares the non-loadable `AtomicCacheContract` marker; its `add()` still provides atomic semantics. Resolution path: extract shared queue/cache contracts to an `AskQueue` package (or move the wrappers to the client lib and invert the dependency) — tracked in `docs/tasks/async-kernel-issues.md` (C1, C2).
+- **C1/C2 закрыты (2026-09-26)**: `ASKQueueWrapper` и `ProcessingMetrics` больше не импортируют `BAGArt\AskQueue\Contracts\*` — переведены на локальные контракты ядра (`src/Contracts/Queue/`, см. `sdd/01-remaining-kernel-issues.md`). Выделение общих queue-контрактов в отдельный пакет `ask-queue` (упоминается в `docs/SDD-ask-client.md`) по-прежнему не сделано — пакета нет в workspace. `ASKCacheWrapper` не объявляет несуществующий маркер `AtomicCacheContract`; его `add()` даёт атомарную семантику.

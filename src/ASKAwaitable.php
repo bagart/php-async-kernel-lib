@@ -25,6 +25,12 @@ abstract class ASKAwaitable implements ASKAwaitableContract
         return $this->completed;
     }
 
+    /**
+     * Settled value.
+     *
+     * @see ASKAwaitableContract::result() — rethrows the stored error on a
+     *      rejected awaitable; call error() first when throwing is unwanted.
+     */
     final public function result(): mixed
     {
         if ($this->error) {
@@ -34,6 +40,12 @@ abstract class ASKAwaitable implements ASKAwaitableContract
         return $this->result;
     }
 
+    /**
+     * The stored rejection, or null when there is none.
+     *
+     * result() throws this error instead of returning it — inspect error()
+     * (or isCompleted() + error()) before calling result().
+     */
     final public function error(): ?Throwable
     {
         return $this->error;
@@ -50,6 +62,12 @@ abstract class ASKAwaitable implements ASKAwaitableContract
         $this->callbacks[] = $callback;
     }
 
+    /**
+     * Suspends the current Fiber until settlement and returns the value.
+     *
+     * Outside a Fiber a RuntimeException is thrown. A rejected awaitable
+     * makes await() throw the error reported by error() (via result()).
+     */
     public function await(): mixed
     {
         if ($this->completed) {

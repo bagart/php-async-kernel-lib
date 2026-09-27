@@ -75,6 +75,9 @@ final class AsyncKernel implements AsyncKernelContract
         // Intentional static side-effect: ASK::sleep() is a convenience facade
         // that requires a globally registered timer. The kernel is the natural
         // owner of that timer, so it registers it once at construction time.
+        // Constraints: the facade timer is process-wide and last-wins — one
+        // kernel per process owns ASK::sleep(); constructing another kernel
+        // re-points the facade to its own timer (see ASK::setTimer()).
         ASK::setTimer($this->timer);
     }
 
@@ -546,15 +549,18 @@ final class AsyncKernel implements AsyncKernelContract
             $this->timer->requestStop();
             $this->prepareAllDaemonsShutdown();
 
-            // Phase DRAINING
+            // Phase DRAINING — one shared deadline: the value advertised to
+            // daemons through the context IS the budget the drain loop runs on,
+            // so daemons and the kernel never disagree on when draining ends.
             $this->shutdownPhase = ShutdownPhase::DRAINING;
+            $drainDeadline = microtime(true) + ($this->drainTimeout / 1000);
             $this->shutdownContext = new ASKShutdownContext(
                 phase: ShutdownPhase::DRAINING,
                 forced: SignalTriggers::isForceRequested(),
-                deadline: microtime(true) + $this->shutdownTimeout,
+                deadline: $drainDeadline,
             );
 
-            $notFinished = $this->drainDaemonsByPriority();
+            $notFinished = $this->drainDaemonsByPriority($drainDeadline);
 
             if ($notFinished !== []) {
                 // Phase FORCING
@@ -606,7 +612,11 @@ final class AsyncKernel implements AsyncKernelContract
         }
     }
 
-    private function drainDaemonsByPriority(): array
+    /**
+     * @param  float  $globalDeadline  Shared DRAINING deadline (microtime, seconds) computed by {@see doShutdown()}.
+     * @return list<string> Names of daemons that did not finish within the deadline
+     */
+    private function drainDaemonsByPriority(float $globalDeadline): array
     {
         $sorted = $this->daemons;
 
@@ -617,7 +627,6 @@ final class AsyncKernel implements AsyncKernelContract
             return $priorityB <=> $priorityA;
         });
 
-        $globalDeadline = microtime(true) + ($this->drainTimeout / 1000);
         $drainDeadlineNs = hrtime(true) + ($this->drainTimeout * 1_000_000);
         $notFinished = [];
         $startTime = microtime(true);

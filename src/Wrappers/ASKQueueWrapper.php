@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace BAGArt\AsyncKernel\Wrappers;
 
-use BAGArt\AskQueue\Contracts\ASKQueueAdapterContract;
+use BAGArt\AsyncKernel\Contracts\Queue\ASKQueueAdapterContract;
 
 /**
- * @deprecated Use BAGArt\AskQueue\ASKQueueWrapper directly.
+ * @deprecated Use the canonical ask-queue wrapper directly.
  *
  * Backward-compatible class. The canonical implementation now lives in bagart/ask-queue.
- * This class delegates to the same contract and will be replaced by a class_alias in a future release.
+ * This class delegates to the kernel-local queue adapter contract and will be
+ * replaced by a class_alias in a future release.
  */
 final class ASKQueueWrapper
 {

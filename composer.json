@@ -34,7 +34,7 @@
         }
     },
     "scripts": {
-        "test": "composer exec pest tests --colors=always"
+        "test": "composer exec pest tests"
     },
     "require-dev": {
         "pestphp/pest": "^4.7",

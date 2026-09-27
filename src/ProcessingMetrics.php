@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace BAGArt\AsyncKernel;
 
-use BAGArt\AskQueue\Contracts\ActivePartitionsContract;
-use BAGArt\AskQueue\Contracts\ASKQueueAdapterContract;
-use BAGArt\AskQueue\Contracts\PartitionStreamContract;
-use BAGArt\AskQueue\Contracts\PendingAckRegistryContract;
 use BAGArt\AsyncKernel\Contracts\MetricsContract;
+use BAGArt\AsyncKernel\Contracts\Queue\ActivePartitionsContract;
+use BAGArt\AsyncKernel\Contracts\Queue\PartitionStreamContract;
+use BAGArt\AsyncKernel\Contracts\Queue\PendingAckRegistryContract;
+use BAGArt\AsyncKernel\Contracts\Queue\RetryQueueSizeContract;
 
 final class ProcessingMetrics implements MetricsContract
 {
@@ -35,7 +35,7 @@ final class ProcessingMetrics implements MetricsContract
 
     public function __construct(
         private readonly ActivePartitionsContract $activePartitions,
-        private readonly ASKQueueAdapterContract $retryQueue,
+        private readonly RetryQueueSizeContract $retryQueue,
         private readonly ?PendingAckRegistryContract $pendingAck = null,
         private readonly ?PartitionStreamContract $stream = null,
     ) {
@@ -97,7 +97,7 @@ final class ProcessingMetrics implements MetricsContract
 
     public function retryQueueSize(): int
     {
-        return $this->retryQueue->size();
+        return $this->retryQueue->retryQueueSize();
     }
 
     public function pendingAckCount(): int
@@ -175,9 +175,31 @@ final class ProcessingMetrics implements MetricsContract
     /**
      * Returns a snapshot of all metrics as an associative array.
      *
-     * This method is Fiber-safe: it reads only scalar counters and
-     * derived values that are updated atomically via simple integer
-     * operations. No external state or mutable references are returned.
+     * Fiber-safety assumption: this method is safe only under a cooperative scheduler
+     * (fibers as driven by the async kernel), where a running fiber is never
+     * preempted in the middle of a statement and can only yield at an explicit
+     * suspension point. The counters are plain int properties updated with
+     * `++`/`+=` and never read under a lock, so as long as the snapshot is built
+     * without hitting a suspension point, no other fiber can interleave between
+     * the individual reads and the whole array describes one consistent point
+     * in time.
+     *
+     * All local counter reads are plain property reads; the derived gauges
+     * (`avgExecutionTimeMs`, `executionTimeHistogram`) are computed from those
+     * same counters within this single call. The queue-side gauges
+     * (`activePartitions`, `retryQueueSize`, `pendingAckCount`, `partitionLag`)
+     * delegate to the injected contracts: if any of those implementations
+     * suspends (e.g. performs blocking I/O inside a fiber) while the snapshot is
+     * built, other fibers may mutate the local counters in between and the
+     * local gauges and queue gauges may then describe slightly different points
+     * in time.
+     *
+     * Under preemptive concurrency (threads, or async signal handlers
+     * interrupting between the read and the `++`/`+=` update of a counter) the
+     * returned values may be torn or stale. This method performs no locking and
+     * makes no atomicity guarantee there.
+     *
+     * No external state or mutable references are returned.
      *
      * @return array<string, mixed>
      */

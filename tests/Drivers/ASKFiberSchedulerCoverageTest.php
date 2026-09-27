@@ -76,6 +76,41 @@ describe('ASKFiberScheduler coverage', function () {
         expect($pressure)->toBeGreaterThan(0);
     });
 
+    it('pressure is non-zero with a deep queue and no sockets', function () {
+        $scheduler = new ASKFiberScheduler();
+
+        for ($i = 0; $i < 1000; $i++) {
+            $scheduler->enqueue(function () {
+                Fiber::suspend();
+            });
+        }
+
+        expect($scheduler->queueSize())->toBe(1000)
+            ->and($scheduler->isIdle())->toBeFalse()
+            ->and($scheduler->pressure())->not->toBe(0)
+            ->and($scheduler->pressure())->toBe(100);
+    });
+
+    it('pressure scales with queue depth and stays within 0..100', function () {
+        $scheduler = new ASKFiberScheduler();
+
+        for ($i = 0; $i < 50; $i++) {
+            $scheduler->enqueue(function () {
+                Fiber::suspend();
+            });
+        }
+
+        expect($scheduler->pressure())->toBe(50);
+
+        for ($i = 0; $i < 1500; $i++) {
+            $scheduler->enqueue(function () {
+                Fiber::suspend();
+            });
+        }
+
+        expect($scheduler->pressure())->toBe(100);
+    });
+
     it('isIdle returns true after all fibers complete', function () {
         $scheduler = new ASKFiberScheduler();
 
@@ -126,6 +161,59 @@ describe('ASKFiberScheduler coverage', function () {
 
         // Should be idle since untracked
         expect($scheduler->isIdle())->toBeTrue();
+    });
+
+    it('untrack ignores a future that is not the tracked one', function () {
+        $scheduler = new ASKFiberScheduler(batchSize: 10);
+        $tracked = new \BAGArt\AsyncKernel\Promise\ASKDeferred();
+        $stranger = new \BAGArt\AsyncKernel\Promise\ASKDeferred();
+
+        $fiber = new Fiber(function () {
+            throw new RuntimeException('fail');
+        });
+
+        $scheduler->track($fiber, $tracked);
+        $scheduler->untrack($fiber, $stranger);
+        $scheduler->enqueue($fiber);
+
+        $scheduler->tick(0);
+
+        expect($tracked->isCompleted())->toBeTrue()
+            ->and($tracked->error())->toBeInstanceOf(RuntimeException::class)
+            ->and($stranger->isCompleted())->toBeFalse();
+    });
+
+    it('untrack on an untracked fiber is a no-op', function () {
+        $scheduler = new ASKFiberScheduler();
+        $future = new \BAGArt\AsyncKernel\Promise\ASKDeferred();
+
+        $fiber = new Fiber(function () {
+            Fiber::suspend();
+        });
+
+        $scheduler->untrack($fiber, $future);
+
+        expect($scheduler->isIdle())->toBeTrue();
+    });
+
+    it('track replaces the previously associated future', function () {
+        $scheduler = new ASKFiberScheduler(batchSize: 10);
+        $first = new \BAGArt\AsyncKernel\Promise\ASKDeferred();
+        $second = new \BAGArt\AsyncKernel\Promise\ASKDeferred();
+
+        $fiber = new Fiber(function () {
+            throw new RuntimeException('fail');
+        });
+
+        $scheduler->track($fiber, $first);
+        $scheduler->track($fiber, $second);
+        $scheduler->enqueue($fiber);
+
+        $scheduler->tick(0);
+
+        expect($second->isCompleted())->toBeTrue()
+            ->and($second->error())->toBeInstanceOf(RuntimeException::class)
+            ->and($first->isCompleted())->toBeFalse();
     });
 
     it('handles completed fibers then suspended fibers in separate batches', function () {

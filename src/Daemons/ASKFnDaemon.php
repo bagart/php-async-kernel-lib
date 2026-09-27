@@ -125,13 +125,20 @@ final class ASKFnDaemon implements
     }
 
     /**
-     * Returns the scheduler as a tickable for the kernel to drive.
+     * Companion tickables owned by this daemon (currently only its scheduler).
      *
-     * The result is memoized because the kernel calls tickable() during
-     * addDaemon() to extract sub-tickables, and again during isIdle()/queueSize()
-     * aggregation. Memoization ensures the same scheduler instance is returned
-     * each time, avoiding duplicate registration and keeping identity stable
-     * for SplObjectStorage-based tracking in the kernel.
+     * NOT the daemon itself: ASKFnDaemon is registered by the kernel through
+     * ASKTickableContract, while this method only exposes side objects it also
+     * drives. Return only such side objects — returning $this would be dropped
+     * by the kernel's `$sub !== $tickable` guard (AsyncKernel::addTickable)
+     * and blur which object is actually ticked.
+     *
+     * Memoization: isIdle()/queueSize() re-read this list on every aggregation
+     * pass. The scheduler object is already identity-stable (readonly context
+     * property), so the memo only avoids rebuilding the array — it does not
+     * change element identity, which the kernel tracks by spl_object_id().
+     *
+     * @return array<int, ASKTickableContract> empty when the context has no scheduler
      */
     public function tickable(): array
     {
