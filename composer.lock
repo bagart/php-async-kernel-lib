@@ -4,8 +4,61 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9b35129d93a5ae79b2446f39ff9dee23",
+    "content-hash": "9618c1cad84ad1f2d1466ea0414d1238",
     "packages": [
+        {
+            "name": "bagart/ask-queue",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../ask-queue",
+                "reference": "54cc3695b2c235354873b46412b4ba089d9f0d7e"
+            },
+            "require": {
+                "php": ">=8.2"
+            },
+            "require-dev": {
+                "bagart/telegram-platform-devops-baseline": "@dev",
+                "pestphp/pest": "^4.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "BAGArt\\AskQueue\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "BAGArt\\AskQueue\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "vendor/bin/pest --no-coverage"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "BAGArt (Artur Baltaev)",
+                    "email": "baltaev.artur+ask@gmail.com"
+                }
+            ],
+            "description": "Queue domain contracts, registry, and wrappers for the ASK runtime",
+            "keywords": [
+                "ASK",
+                "contracts",
+                "job",
+                "partition",
+                "queue",
+                "registry"
+            ],
+            "transport-options": {
+                "relative": true
+            }
+        },
         {
             "name": "monolog/monolog",
             "version": "3.10.0",
@@ -218,7 +271,7 @@
             "dist": {
                 "type": "path",
                 "url": "../telegram-platform-devops-baseline",
-                "reference": "b9b6f054d845dab446185693d1412dd26fd48714"
+                "reference": "148244dc2147187bfa880373d5f6f47a2cf2b7f1"
             },
             "require": {
                 "php": "^8.4"
@@ -4277,11 +4330,12 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "stability-flags": {
+        "bagart/ask-queue": 20,
         "bagart/telegram-platform-devops-baseline": 20
     },
-    "prefer-stable": false,
+    "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
         "php": "^8.5"

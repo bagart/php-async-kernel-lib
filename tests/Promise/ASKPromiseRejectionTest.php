@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use BAGArt\AsyncKernel\Exceptions\ASKTechnicalException;
 use BAGArt\AsyncKernel\Promise\ASKPromise;
 
 describe('ASKPromise rejection reason preservation (C4)', function () {

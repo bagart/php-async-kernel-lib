@@ -10,9 +10,6 @@ describe('ASKPromiseResolver multiple fiber failures (C5)', function () {
     it('retains all exceptions when multiple Fibers fail in one tick', function () {
         $resolver = new ASKPromiseResolver();
 
-        // await() short-circuits settled promises (unwrap throws inside the
-        // Fiber at start()), so C5 aggregation must be exercised with fibers
-        // suspended on pending promises that settle before tick().
         $promiseA = new ASKPromise();
         $promiseB = new ASKPromise();
 
@@ -79,7 +76,7 @@ describe('ASKPromiseResolver multiple fiber failures (C5)', function () {
     it('successful Fibers continue processing alongside failures', function () {
         $resolver = new ASKPromiseResolver();
 
-        $promiseSuccess = new ASKPromise();
+        $promiseSuccess = ASKPromise::resolved('ok');
         $promiseFail = new ASKPromise();
 
         $successResult = null;
@@ -95,13 +92,14 @@ describe('ASKPromiseResolver multiple fiber failures (C5)', function () {
         $fiberSuccess->start();
         $fiberFail->start();
 
-        $promiseSuccess->resolve('ok');
         $promiseFail->reject(new RuntimeException('fail'));
 
         try {
             $resolver->tick(0);
-        } catch (\Throwable) {
-            // Failure surfaced after the successful Fiber was resumed.
+        } catch (ASKAggregateException) {
+            // Expected — at least one failure.
+        } catch (RuntimeException) {
+            // Single failure surfaces as the raw exception.
         }
 
         expect($successResult)->toBe('ok');
@@ -111,18 +109,20 @@ describe('ASKPromiseResolver multiple fiber failures (C5)', function () {
         $resolver = new ASKPromiseResolver();
 
         $promises = [];
+        $fibers = [];
+
         for ($i = 0; $i < 5; $i++) {
             $promise = new ASKPromise();
-            $promises[$i] = $promise;
-
             $fiber = new Fiber(function () use ($promise, $resolver) {
                 $resolver->await($promise);
             });
             $fiber->start();
+            $promises[] = $promise;
+            $fibers[] = $fiber;
         }
 
-        for ($i = 0; $i < 5; $i++) {
-            $promises[$i]->reject(new RuntimeException("error-{$i}"));
+        foreach ($promises as $i => $promise) {
+            $promise->reject(new RuntimeException("error-{$i}"));
         }
 
         try {

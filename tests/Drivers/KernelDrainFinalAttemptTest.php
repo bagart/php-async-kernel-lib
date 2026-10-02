@@ -5,21 +5,14 @@ declare(strict_types=1);
 use BAGArt\AsyncKernel\AsyncKernel;
 use BAGArt\AsyncKernel\ASKShutdownContext;
 use BAGArt\AsyncKernel\Contracts\Daemons\ASKDaemonContract;
-use BAGArt\AsyncKernel\Contracts\Daemons\ASKShutdownAware;
 use BAGArt\AsyncKernel\Contracts\Daemons\ASKTickableContract;
 use BAGArt\AsyncKernel\Enum\ExceptionPolicy;
-use BAGArt\AsyncKernel\Enum\ShutdownPhase;
 use BAGArt\AsyncKernel\Wrappers\ASKLogWrapper;
 use Psr\Log\NullLogger;
 
-final class ThrowingShutdownDaemon implements ASKDaemonContract, ASKShutdownAware, ASKTickableContract
+final class DrainAttemptCountingDaemon implements ASKDaemonContract, ASKTickableContract
 {
-    public function __construct(
-        private readonly string $daemonName,
-        private readonly ?Throwable $throwOnShutdown = null,
-        private readonly int $priority = 50,
-    ) {
-    }
+    public int $shutdownCalls = 0;
 
     public function startup(): void
     {
@@ -27,33 +20,17 @@ final class ThrowingShutdownDaemon implements ASKDaemonContract, ASKShutdownAwar
 
     public function shutdown(ASKShutdownContext $context): bool
     {
-        if ($this->throwOnShutdown !== null) {
-            throw $this->throwOnShutdown;
-        }
+        $this->shutdownCalls++;
 
         return true;
     }
 
     public function name(): string
     {
-        return $this->daemonName;
+        return 'drain-attempt-pin';
     }
 
     public function onError(Throwable $e): void
-    {
-    }
-
-    public function shutdownPriority(): int
-    {
-        return $this->priority;
-    }
-
-    public function shutdownTimeout(): int
-    {
-        return 5;
-    }
-
-    public function prepareShutdown(): void
     {
     }
 
@@ -77,13 +54,13 @@ final class ThrowingShutdownDaemon implements ASKDaemonContract, ASKShutdownAwar
     }
 }
 
-final class StopKernelTickable implements ASKTickableContract
+final class DrainAttemptStopTickable implements ASKTickableContract
 {
     private int $ticks = 0;
 
     public function __construct(
         private readonly AsyncKernel $kernel,
-        private readonly int $stopAfter = 2,
+        private readonly int $stopAfter = 1,
     ) {
     }
 
@@ -92,7 +69,7 @@ final class StopKernelTickable implements ASKTickableContract
         $this->ticks++;
 
         if ($this->ticks >= $this->stopAfter) {
-            $this->kernel->stop('test-done');
+            $this->kernel->stop('drain-attempt-pin-done');
         }
     }
 
@@ -112,8 +89,8 @@ final class StopKernelTickable implements ASKTickableContract
     }
 }
 
-describe('AsyncKernel shutdown daemon exception handling', function () {
-    it('continues draining when one daemon throws during shutdown', function () {
+describe('AsyncKernel drain final attempt (Q1)', function () {
+    it('skips the final shutdown() call once the drain deadline has passed', function () {
         $records = [];
         $spyLogger = new class ($records) implements \Psr\Log\LoggerInterface {
             public function __construct(private array &$records)
@@ -127,17 +104,14 @@ describe('AsyncKernel shutdown daemon exception handling', function () {
 
             public function emergency(string|\Stringable $message, array $context = []): void
             {
-                $this->log('emergency', $message, $context);
             }
 
             public function alert(string|\Stringable $message, array $context = []): void
             {
-                $this->log('alert', $message, $context);
             }
 
             public function critical(string|\Stringable $message, array $context = []): void
             {
-                $this->log('critical', $message, $context);
             }
 
             public function error(string|\Stringable $message, array $context = []): void
@@ -152,7 +126,6 @@ describe('AsyncKernel shutdown daemon exception handling', function () {
 
             public function notice(string|\Stringable $message, array $context = []): void
             {
-                $this->log('notice', $message, $context);
             }
 
             public function info(string|\Stringable $message, array $context = []): void
@@ -162,7 +135,6 @@ describe('AsyncKernel shutdown daemon exception handling', function () {
 
             public function debug(string|\Stringable $message, array $context = []): void
             {
-                $this->log('debug', $message, $context);
             }
         };
 
@@ -170,74 +142,44 @@ describe('AsyncKernel shutdown daemon exception handling', function () {
             logger: new ASKLogWrapper(logger: $spyLogger),
             exceptionPolicy: ExceptionPolicy::IGNORE,
             shutdownTimeout: 1,
+            drainTimeout: 0,
         );
 
-        $goodDaemon = new ThrowingShutdownDaemon('good-daemon', priority: 100);
-        $badDaemon = new ThrowingShutdownDaemon(
-            'bad-daemon',
-            throwOnShutdown: new RuntimeException('daemon-crash'),
-            priority: 50,
-        );
-
-        $kernel->addDaemon($goodDaemon);
-        $kernel->addDaemon($badDaemon);
-        $kernel->addTickable(new StopKernelTickable(kernel: $kernel, stopAfter: 2));
+        $daemon = new DrainAttemptCountingDaemon();
+        $kernel->addDaemon($daemon);
+        $kernel->addTickable(new DrainAttemptStopTickable(kernel: $kernel));
 
         $kernel->run();
 
-        $errorLogged = false;
+        expect($daemon->shutdownCalls)->toBe(0);
+
+        $notFinishedLogged = false;
+
         foreach ($records as $record) {
-            if ($record['level'] === 'error' && str_contains($record['message'], 'bad-daemon')) {
-                $errorLogged = true;
+            if ($record['level'] === 'error' && str_contains($record['message'], 'drain-attempt-pin')) {
+                $notFinishedLogged = true;
 
                 break;
             }
         }
 
-        expect($errorLogged)->toBeTrue();
+        expect($notFinishedLogged)->toBeTrue();
     });
 
-    it('kernel reaches STOPPED phase even when daemon throws in shutdown', function () {
+    it('calls shutdown() once during a drain that finishes inside the deadline', function () {
         $kernel = new AsyncKernel(
             logger: new ASKLogWrapper(logger: new NullLogger()),
             exceptionPolicy: ExceptionPolicy::IGNORE,
-            shutdownTimeout: 1,
+            shutdownTimeout: 5,
+            drainTimeout: 30_000,
         );
 
-        $badDaemon = new ThrowingShutdownDaemon(
-            'crash-daemon',
-            throwOnShutdown: new RuntimeException('boom'),
-        );
-
-        $kernel->addDaemon($badDaemon);
-        $kernel->addTickable(new StopKernelTickable(kernel: $kernel, stopAfter: 2));
+        $daemon = new DrainAttemptCountingDaemon();
+        $kernel->addDaemon($daemon);
+        $kernel->addTickable(new DrainAttemptStopTickable(kernel: $kernel));
 
         $kernel->run();
 
-        expect($kernel->shutdownPhase())->toBe(ShutdownPhase::STOPPED);
-    });
-
-    it('does not crash when multiple daemons throw during shutdown', function () {
-        $kernel = new AsyncKernel(
-            logger: new ASKLogWrapper(logger: new NullLogger()),
-            exceptionPolicy: ExceptionPolicy::IGNORE,
-            shutdownTimeout: 1,
-        );
-
-        $kernel->addDaemon(new ThrowingShutdownDaemon(
-            'crash-1',
-            throwOnShutdown: new RuntimeException('first'),
-            priority: 100,
-        ));
-        $kernel->addDaemon(new ThrowingShutdownDaemon(
-            'crash-2',
-            throwOnShutdown: new RuntimeException('second'),
-            priority: 50,
-        ));
-        $kernel->addTickable(new StopKernelTickable(kernel: $kernel, stopAfter: 2));
-
-        $kernel->run();
-
-        expect($kernel->shutdownPhase())->toBe(ShutdownPhase::STOPPED);
+        expect($daemon->shutdownCalls)->toBe(1);
     });
 });

@@ -22,6 +22,8 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
     private const int NORMAL_POLL_US = 50_000;
     private const int SLOW_POLL_US = 200_000;
     private const int DEFAULT_BATCH_SIZE = 10;
+    private const int SOCKET_FULL_SCALE = 50;
+    private const int QUEUE_FULL_SCALE = 100;
 
     /** @var SplQueue<Fiber> Chosen for O(1) enqueue/dequeue; under sustained throughput, linked-list nodes may cause allocator fragmentation. A ring buffer would reduce fragmentation but loses O(1) dequeue. */
     private SplQueue $queue;
@@ -96,8 +98,8 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
         $socketCount = count($this->readSockets) + count($this->writeSockets);
         $queueCount = $this->queue->count();
 
-        $socketPressure = $socketCount === 0 ? 0 : (int) min(100, ($socketCount / 50) * 100);
-        $queuePressure = $queueCount === 0 ? 0 : (int) min(100, ($queueCount / 100) * 100);
+        $socketPressure = $socketCount === 0 ? 0 : (int) min(100, ($socketCount / self::SOCKET_FULL_SCALE) * 100);
+        $queuePressure = $queueCount === 0 ? 0 : (int) min(100, ($queueCount / self::QUEUE_FULL_SCALE) * 100);
 
         return max($socketPressure, $queuePressure);
     }
@@ -135,11 +137,13 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
     public function unwatchRead(mixed $socket): void
     {
         $id = (int)$socket;
+        $this->releaseStoredLease($id);
         unset($this->readSockets[$id], $this->waitingReadFibers[$id], $this->leases[$id]);
     }
 
     public function unwatchReadByResourceId(int $socketId): void
     {
+        $this->releaseStoredLease($socketId);
         unset($this->readSockets[$socketId], $this->waitingReadFibers[$socketId], $this->leases[$socketId]);
     }
 
@@ -168,12 +172,25 @@ final class ASKFiberScheduler implements ASKSchedulerContract, ASKSocketSchedule
     public function unwatchWrite(mixed $socket): void
     {
         $id = (int)$socket;
+        $this->releaseStoredLease($id);
         unset($this->writeSockets[$id], $this->waitingWriteFibers[$id], $this->leases[$id]);
     }
 
     public function unwatchWriteByResourceId(int $socketId): void
     {
+        $this->releaseStoredLease($socketId);
         unset($this->writeSockets[$socketId], $this->waitingWriteFibers[$socketId], $this->leases[$socketId]);
+    }
+
+    /**
+     * A scheduler-side unwatch drops the stored lease; settling it first keeps
+     * the destructor warning exclusive to genuine abandonment (the
+     * FiberRedisConnection watch/unwatch path discards the lease object).
+     */
+    private function releaseStoredLease(int $socketId): void
+    {
+        $lease = $this->leases[$socketId] ?? null;
+        $lease?->release();
     }
 
     // ===== tick =====

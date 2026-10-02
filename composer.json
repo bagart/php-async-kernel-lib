@@ -19,6 +19,7 @@
     ],
     "require": {
         "php": "^8.5",
+        "bagart/ask-queue": "@dev",
         "monolog/monolog": "^3.0",
         "psr/log": "^3.0",
         "psr/simple-cache": "*"
@@ -34,7 +35,7 @@
         }
     },
     "scripts": {
-        "test": "composer exec pest tests --colors=always"
+        "test": "composer exec pest tests"
     },
     "require-dev": {
         "pestphp/pest": "^4.7",
@@ -49,7 +50,13 @@
     "repositories": [
         {
             "type": "path",
+            "url": "../ask-queue"
+        },
+        {
+            "type": "path",
             "url": "../telegram-platform-devops-baseline"
         }
-    ]
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true
 }
