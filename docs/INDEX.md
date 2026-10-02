@@ -6,7 +6,7 @@
 
 | Need | File |
 |---|---|
-| Kernel model, lifecycle, contracts | `SDD-async-kernel.md` |
+| Kernel model, lifecycle, contracts | `sdd/async-kernel.md` |
 
 ## Source map (src/)
 
