@@ -6,7 +6,7 @@
 
 | Need | File |
 |---|---|
-| Kernel model, lifecycle, contracts | `SDD-async-kernel.md` |
+| Kernel model, lifecycle, contracts | `sdd/async-kernel.md` |
 | Review backlog closure (C1–C2, M1–M9, L1–L5), status matrix | `sdd/01-remaining-kernel-issues.md` |
 
 ## Source map (src/)

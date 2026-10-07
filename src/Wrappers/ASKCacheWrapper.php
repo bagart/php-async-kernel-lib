@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BAGArt\AsyncKernel\Wrappers;
 
+use BAGArt\AskQueue\Contracts\AtomicCacheContract;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
@@ -13,10 +14,7 @@ use Psr\SimpleCache\CacheInterface;
 /**
  * @implements \Illuminate\Contracts\Cache\Store
  */
-// NOTE: add() provides atomic set-if-not-exists semantics (H1/H3), but the
-// class does NOT implement a cross-package AtomicCacheContract yet — the
-// AskQueue/ASKClient contract extraction (task C1/C2) is still open.
-final class ASKCacheWrapper implements \Psr\SimpleCache\CacheInterface
+final class ASKCacheWrapper implements \Psr\SimpleCache\CacheInterface, AtomicCacheContract
 {
     public function __construct(
         private readonly CacheInterface|Store $cache,

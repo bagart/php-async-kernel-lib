@@ -265,10 +265,18 @@ final class AsyncKernel implements AsyncKernelContract
                         );
                     }
                 } else {
-                    // Plain (non-daemon) tickables have no onError() lifecycle,
-                    // but the failure must still reach run() so exceptionPolicy
-                    // applies (contract: 06 §44–§46 — INTERRUPT propagates).
-                    throw $e;
+                    $this->logger->error(
+                        "[AsyncKernel] Tickable " . $tickable::class . " threw: {$e->getMessage()}"
+                    );
+
+                    match ($this->exceptionPolicy) {
+                        ExceptionPolicy::IGNORE,
+                        ExceptionPolicy::RESTART_DAEMON => null,
+                        ExceptionPolicy::STOP_KERNEL => $this->stop(
+                            "Exception: {$e->getMessage()}"
+                        ),
+                        ExceptionPolicy::INTERRUPT => throw $e,
+                    };
                 }
             }
         }
@@ -760,6 +768,10 @@ final class AsyncKernel implements AsyncKernelContract
             } catch (Throwable $e) {
                 if ($tickable instanceof ASKDaemonContract) {
                     $tickable->onError($e);
+                } else {
+                    $this->logger->error(
+                        "[AsyncKernel] Tickable " . $tickable::class . " threw: {$e->getMessage()}"
+                    );
                 }
             }
         }
