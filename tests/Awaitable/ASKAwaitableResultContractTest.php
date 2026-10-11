@@ -10,7 +10,7 @@ use BAGArt\AsyncKernel\Contracts\ASKAwaitableContract;
  */
 function askAwaitableProbe(): ASKAwaitable
 {
-    return new class extends ASKAwaitable {
+    return new class () extends ASKAwaitable {
         public function doResolve(mixed $value = null): void
         {
             $this->resolve($value);

@@ -72,8 +72,7 @@ describe('kernel-local queue contracts (C1/C2)', function () {
     });
 
     it('lets one adapter implement both queue contracts without a signature collision', function () {
-        $adapter = new class implements ASKQueueAdapterContract, RetryQueueSizeContract
-        {
+        $adapter = new class () implements ASKQueueAdapterContract, RetryQueueSizeContract {
             public function push(string $queueName, string $payload): void
             {
             }

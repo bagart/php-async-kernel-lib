@@ -12,7 +12,7 @@ use BAGArt\AsyncKernel\Promise\ASKPromise;
  */
 function askPromisePumpFixture(callable $settle): ASKPromise
 {
-    $tickable = new class implements ASKTickableContract {
+    $tickable = new class () implements ASKTickableContract {
         public ?Closure $onTick = null;
 
         private bool $fired = false;

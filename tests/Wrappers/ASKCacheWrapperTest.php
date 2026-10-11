@@ -175,7 +175,7 @@ class ASKCacheWrapperBackendFake implements CacheInterface
 
     public function getStore(): \Illuminate\Contracts\Cache\Store
     {
-        return new class implements \Illuminate\Contracts\Cache\Store {};
+        return new class () implements \Illuminate\Contracts\Cache\Store {};
     }
 }
 

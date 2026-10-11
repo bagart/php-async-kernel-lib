@@ -82,8 +82,7 @@ describe('ASKQueueWrapper delegates to the kernel-local adapter contract (C1)', 
     });
 
     it('rejects an object that does not implement the kernel contract', function () {
-        $foreign = new class
-        {
+        $foreign = new class () {
             public function push(string $queueName, string $payload): void
             {
             }
