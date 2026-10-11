@@ -175,7 +175,62 @@ class ASKCacheWrapperBackendFake implements CacheInterface
 
     public function getStore(): \Illuminate\Contracts\Cache\Store
     {
-        return new class () implements \Illuminate\Contracts\Cache\Store {};
+        return new class () implements \Illuminate\Contracts\Cache\Store {
+            public function get($key)
+            {
+                return null;
+            }
+
+            public function many(array $keys)
+            {
+                return [];
+            }
+
+            public function put($key, $value, $seconds)
+            {
+                return false;
+            }
+
+            public function putMany(array $values, $seconds)
+            {
+                return false;
+            }
+
+            public function increment($key, $value = 1)
+            {
+                return false;
+            }
+
+            public function decrement($key, $value = 1)
+            {
+                return false;
+            }
+
+            public function forever($key, $value)
+            {
+                return false;
+            }
+
+            public function touch($key, $seconds)
+            {
+                return false;
+            }
+
+            public function forget($key)
+            {
+                return false;
+            }
+
+            public function flush()
+            {
+                return false;
+            }
+
+            public function getPrefix()
+            {
+                return '';
+            }
+        };
     }
 }
 
